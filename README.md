@@ -49,6 +49,49 @@ context-menu routing). The browser-only paths (`OffscreenCanvas`,
 `createImageBitmap`, `PerformanceObserver`) are not runnable under Node and are
 covered by the manual checklist below.
 
+## Releasing
+
+The version lives in exactly one place: `version` in `manifest.json`. There is
+no separate source of truth (the `package.json` version is unused). To cut a
+release, bump that field, commit, and push a matching tag:
+
+```bash
+# edit manifest.json: "version": "0.1.0"
+git commit -am "release: v0.1.0"
+git tag v0.1.0
+git push --tags
+```
+
+The `v*` tag triggers `.github/workflows/release.yml`, which:
+
+1. Fails fast unless the tag equals `v{manifest.json version}`, so a mistyped
+   tag or a forgotten manifest bump stops the run before anything ships.
+2. Runs the full CI gauntlet (lint, type-check, test, build, verify-dist, pack,
+   smoke).
+3. Creates a GitHub Release named after the tag with generated notes and the
+   packed `auraimage-x-ray-v*.zip` attached.
+4. Uploads and publishes that zip to the Chrome Web Store, but only when the
+   store secrets are configured. Without them the store steps are skipped and
+   the run logs a notice; the GitHub Release is still created either way.
+
+Chrome Web Store publishing needs five repository secrets:
+
+- `CWS_PUBLISHER_ID`: the publisher ID from the Chrome Web Store developer
+  dashboard.
+- `CWS_EXTENSION_ID`: the item ID of the listing (the id in its store URL).
+- `CWS_CLIENT_ID` and `CWS_CLIENT_SECRET`: a Google Cloud OAuth 2.0 client
+  (Desktop app type) with the Chrome Web Store API enabled.
+- `CWS_REFRESH_TOKEN`: a refresh token minted once for that client against the
+  `https://www.googleapis.com/auth/chromewebstore` scope.
+
+If the store upload fails after the GitHub Release is already created (an
+expired refresh token, a Google-side outage), do not retag. Re-run the release
+from the Actions tab: pick the `release` workflow, choose **Run workflow**, and
+select the existing `vX.Y.Z` tag as the ref. The run detects the existing
+GitHub Release and re-attaches the zip with `--clobber` instead of failing, then
+retries the store upload and publish. A `workflow_dispatch` run pointed at a
+branch instead of a tag fails fast with a clear message.
+
 ## Architecture
 
 Two surfaces, one rule: the ambient work is free and never leaves the browser;

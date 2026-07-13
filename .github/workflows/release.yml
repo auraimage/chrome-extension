@@ -1,0 +1,166 @@
+# .github/workflows/release.yml
+#
+# Tag-driven release for the AuraImage X-Ray extension. Runs on a `v*` tag
+# (or a manual re-run via workflow_dispatch pointed at a tag ref), enforces
+# that the tag equals `v{manifest.json .version}`, runs the full CI gauntlet,
+# publishes a GitHub Release with the packed zip, then uploads and publishes
+# to the Chrome Web Store.
+#
+# Chrome Web Store publishing is optional: the two CWS steps are skipped (with
+# a run-summary notice) unless the required repo secrets are configured. The
+# GitHub Release is always created.
+#
+# Required repository secrets for Chrome Web Store publishing:
+#   CWS_PUBLISHER_ID    Publisher ID from the Chrome Web Store developer dashboard
+#   CWS_EXTENSION_ID    The extension's item ID (from its store URL / dashboard)
+#   CWS_CLIENT_ID       Google Cloud OAuth 2.0 client ID (Chrome Web Store API)
+#   CWS_CLIENT_SECRET   OAuth 2.0 client secret
+#   CWS_REFRESH_TOKEN   OAuth refresh token minted for the chromewebstore scope
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Never cancel a release in flight; run them one at a time.
+concurrency:
+  group: extension-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Map the Chrome Web Store secrets into job-level env so the two CWS steps
+    # can gate on their presence: `secrets.*` is not usable in a step `if:`, but
+    # job-level `env.*` is.
+    env:
+      CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+      CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+      CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+      CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+      CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Validate tag matches manifest version
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/tags/v* ]]; then
+            echo "::error::release must run on a tag ref (refs/tags/v*), got '$GITHUB_REF'. For a workflow_dispatch re-run, select a vX.Y.Z tag as the ref."
+            exit 1
+          fi
+          TAG="${GITHUB_REF#refs/tags/}"
+          EXPECTED="v$(node -p "require('./manifest.json').version")"
+          if [[ "$TAG" != "$EXPECTED" ]]; then
+            echo "::error::tag '$TAG' does not match manifest.json version (expected '$EXPECTED'). Bump manifest.json .version to match the tag, or retag."
+            exit 1
+          fi
+          echo "tag '$TAG' matches manifest.json version"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - run: pnpm lint
+      - run: pnpm type-check
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm verify-dist
+      - run: pnpm run pack
+
+      # puppeteer's Chrome download is a postinstall that pnpm 10 blocks by
+      # default, so fetch the browser explicitly before the smoke test loads it.
+      - run: pnpm exec puppeteer browsers install chrome
+
+      - run: pnpm test:smoke
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists; re-uploading the zip"
+            gh release upload "$TAG" auraimage-x-ray-v*.zip --clobber
+          else
+            gh release create "$TAG" auraimage-x-ray-v*.zip --title "$TAG" --generate-notes
+          fi
+
+      - name: Upload to Chrome Web Store
+        if: env.CWS_EXTENSION_ID != '' && env.CWS_PUBLISHER_ID != ''
+        run: |
+          set -euo pipefail
+
+          ZIP=$(ls auraimage-x-ray-v*.zip)
+
+          # Exchange the refresh token for a short-lived access token.
+          if ! TOKEN_RESPONSE=$(curl -sS --fail-with-body -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=${CWS_CLIENT_ID}" \
+            -d "client_secret=${CWS_CLIENT_SECRET}" \
+            -d "refresh_token=${CWS_REFRESH_TOKEN}" \
+            -d "grant_type=refresh_token"); then
+            echo "::error::Chrome Web Store OAuth token request failed"
+            echo "$TOKEN_RESPONSE"
+            exit 1
+          fi
+          TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+          if [ -z "$TOKEN" ]; then
+            echo "::error::no access_token in OAuth token response"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "CWS_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+          # Upload the packed zip as a new draft of the item.
+          if ! UPLOAD_RESPONSE=$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -T "$ZIP" \
+            "https://chromewebstore.googleapis.com/upload/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:upload"); then
+            echo "::error::Chrome Web Store upload request failed"
+            echo "$UPLOAD_RESPONSE"
+            exit 1
+          fi
+          # The upload can return HTTP 200 with an embedded failure, so fail on
+          # an explicit failure marker rather than trusting the absence of one.
+          STATE=$(echo "$UPLOAD_RESPONSE" | jq -r '.uploadState // empty')
+          ERRORS=$(echo "$UPLOAD_RESPONSE" | jq -r '(.itemError // []) | length')
+          if [ "$STATE" = "FAILURE" ] || [ "$ERRORS" != "0" ]; then
+            echo "::error::Chrome Web Store upload reported a failure (uploadState='$STATE')"
+            echo "$UPLOAD_RESPONSE"
+            exit 1
+          fi
+          echo "uploaded $ZIP to Chrome Web Store item $CWS_EXTENSION_ID (uploadState='$STATE')"
+
+      - name: Publish to Chrome Web Store
+        if: env.CWS_EXTENSION_ID != '' && env.CWS_PUBLISHER_ID != ''
+        run: |
+          set -euo pipefail
+          if ! PUBLISH_RESPONSE=$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer ${CWS_TOKEN}" \
+            -H "Content-Length: 0" \
+            "https://chromewebstore.googleapis.com/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:publish"); then
+            echo "::error::Chrome Web Store publish request failed"
+            echo "$PUBLISH_RESPONSE"
+            exit 1
+          fi
+          # HTTP success is the gate (--fail-with-body above). Surface the
+          # returned status for the run log; ITEM_PENDING_REVIEW is normal.
+          STATUS=$(echo "$PUBLISH_RESPONSE" | jq -r '(.status // []) | join(",")')
+          echo "published $CWS_EXTENSION_ID (status='$STATUS')"
+
+      - name: Note Chrome Web Store upload skipped
+        if: env.CWS_EXTENSION_ID == '' || env.CWS_PUBLISHER_ID == ''
+        run: echo "::notice::Chrome Web Store secrets not configured; skipping store upload (GitHub Release still created)"
