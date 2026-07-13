@@ -158,7 +158,9 @@ jobs:
           fi
           # HTTP success is the gate (--fail-with-body above). Surface the
           # returned status for the run log; ITEM_PENDING_REVIEW is normal.
-          STATUS=$(echo "$PUBLISH_RESPONSE" | jq -r '(.status // []) | join(",")')
+          # Shape-tolerant: a surprise .status type must not fail a publish
+          # that already succeeded at the HTTP layer.
+          STATUS=$(echo "$PUBLISH_RESPONSE" | jq -r '(.status // "unknown") | if type == "array" then join(",") else tostring end' 2>/dev/null) || STATUS=unknown
           echo "published $CWS_EXTENSION_ID (status='$STATUS')"
 
       - name: Note Chrome Web Store upload skipped
