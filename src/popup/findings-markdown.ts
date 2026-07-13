@@ -4,7 +4,7 @@
 import type { FindingsCardModel } from './findings-model';
 
 const FOOTER_TAGLINE = 'measured, not scored';
-const FOOTER_LINK = 'https://auraimage.com';
+const FOOTER_LINK = 'https://auraimage.ai';
 
 export function buildFindingsMarkdown(model: FindingsCardModel): string {
   const lines: string[] = [`## AuraImage X-Ray: ${model.hostname}`, ''];

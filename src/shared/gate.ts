@@ -11,8 +11,8 @@ export const FREE_EXPORT_ALLOWANCE = 3;
 export const EXPORTS_USED_KEY = 'exportsUsed';
 
 /** Where the "create a free project" CTAs point, tagged so we can see the source. */
-export const GATE_CTA_URL = 'https://auraimage.com?utm_source=extension&utm_medium=gate';
-export const WALL_CTA_URL = 'https://auraimage.com?utm_source=extension&utm_medium=wall';
+export const GATE_CTA_URL = 'https://auraimage.ai?utm_source=extension&utm_medium=gate';
+export const WALL_CTA_URL = 'https://auraimage.ai?utm_source=extension&utm_medium=wall';
 
 /** True when the next export is gated (the allowance is already spent). */
 export function isGated(used: number): boolean {

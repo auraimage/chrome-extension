@@ -160,12 +160,12 @@ scripting Chrome. Run `pnpm --filter @auraimage/extension build`, load
    stats, the estimated LCP saving and the LCP image when known, four flag
    counts, and a "served via <Vendor>" line on a page using a known image CDN
    (try a site on Cloudinary or imgix). The footer reads `measured, not scored`
-   and `auraimage.com`.
+   and `auraimage.ai`.
 5. Popup `copy markdown`: paste elsewhere. A markdown block with the stats,
-   flags, and the `auraimage.com` footer link appears, with no em dashes.
+   flags, and the `auraimage.ai` footer link appears, with no em dashes.
 6. Popup `download png`: a 1200x630 PNG downloads. Confirm the text is legible
    and correctly colored (light text on the dark card, not solid black) and the
-   footer reads `measured, not scored` / `auraimage.com`.
+   footer reads `measured, not scored` / `auraimage.ai`.
 7. Popup `copy agent prompt`: copies a prompt built from the page's public image
    URLs. This is never gated.
 8. Popup `mute this site`: badges disappear on that host and the button flips to
@@ -217,10 +217,10 @@ scripting Chrome. Run `pnpm --filter @auraimage/extension build`, load
 
 26. After 3 total exports (panel downloads, copy-snippet, and offline saves all
     count, across tabs) the export controls become the gate CTA linking
-    `auraimage.com` with `utm_medium=gate`; the offline menu item shows the gate
+    `auraimage.ai` with `utm_medium=gate`; the offline menu item shows the gate
     toast and does not download or increment the counter.
 27. When the daily edge ceiling is hit or the edge returns 429, the panel shows
-    the inline wall linking `auraimage.com` with `utm_medium=wall`.
+    the inline wall linking `auraimage.ai` with `utm_medium=wall`.
 28. Options: a non-https edge base shows an error; a valid https value saves;
     empty reverts to the production default; the counter reads
     `free exports used: n / 3`.

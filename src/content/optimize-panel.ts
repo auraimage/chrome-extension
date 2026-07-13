@@ -126,7 +126,7 @@ function imageBaseName(src: string): string {
 function describeError(result: Extract<DemoResult<unknown>, { ok: false }>): { text: string; wall: boolean } {
   switch (result.error) {
     case 'exhausted':
-      return { text: 'demo limit reached, create a free project at auraimage.com', wall: true };
+      return { text: 'demo limit reached, create a free project at auraimage.ai', wall: true };
     case 'rate-limited':
       return { text: 'demo rate limit, retry in a minute', wall: false };
     case 'not-configured':
@@ -431,6 +431,6 @@ function gateLink(): HTMLAnchorElement {
 }
 
 function wallBox(text: string): HTMLElement {
-  const link = h('a', { href: WALL_CTA_URL, target: '_blank', rel: 'noreferrer', text: 'auraimage.com' } as Props);
+  const link = h('a', { href: WALL_CTA_URL, target: '_blank', rel: 'noreferrer', text: 'auraimage.ai' } as Props);
   return h('div', { class: 'owall' }, [h('div', { text }), link]);
 }

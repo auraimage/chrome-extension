@@ -59,7 +59,7 @@ describe('buildFindingsMarkdown', () => {
   });
 
   it('always ends with the footer tagline and link', () => {
-    expect(buildFindingsMarkdown(model())).toContain('measured, not scored. https://auraimage.com');
+    expect(buildFindingsMarkdown(model())).toContain('measured, not scored. https://auraimage.ai');
   });
 
   it('contains no em dash', () => {

@@ -108,7 +108,7 @@ describe('layoutCard', () => {
     const footers = rows.filter((r) => r.role === 'footer');
     expect(footers).toHaveLength(2);
     expect(footers[0]!.y).toBe(footers[1]!.y);
-    const link = footers.find((r) => r.text === 'auraimage.com')!;
+    const link = footers.find((r) => r.text === 'auraimage.ai')!;
     expect(link.align).toBe('right');
   });
 

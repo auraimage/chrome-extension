@@ -134,7 +134,7 @@ export function layoutCard(model: FindingsCardModel): CardRow[] {
 
   const footerY = height - footerOffset;
   rows.push({ text: 'measured, not scored', x: padX, y: footerY, role: 'footer', align: 'left' });
-  rows.push({ text: 'auraimage.com', x: width - padX, y: footerY, role: 'footer', align: 'right' });
+  rows.push({ text: 'auraimage.ai', x: width - padX, y: footerY, role: 'footer', align: 'right' });
 
   return rows;
 }
