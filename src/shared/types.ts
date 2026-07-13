@@ -151,13 +151,7 @@ export interface DemoBytesPayload {
  * `not-configured` is a 503 on the alt route only (its vision key is optional).
  */
 export type DemoErrorKind =
-  | 'rate-limited'
-  | 'exhausted'
-  | 'not-configured'
-  | 'edge-unavailable'
-  | 'timeout'
-  | 'network'
-  | 'invalid';
+  'rate-limited' | 'exhausted' | 'not-configured' | 'edge-unavailable' | 'timeout' | 'network' | 'invalid';
 
 /** Discriminated result the background returns for every edge message. */
 export type DemoResult<T> = { ok: true; value: T } | { ok: false; error: DemoErrorKind; message: string };
