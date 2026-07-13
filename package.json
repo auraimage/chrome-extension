@@ -9,6 +9,7 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint --fix \"src/**/*.ts\"",
     "test": "vitest run",
+    "test:smoke": "node tests/smoke/smoke.mjs",
     "verify-dist": "node scripts/verify-dist.mjs",
     "pack": "node scripts/pack.mjs",
     "gen-icons": "node scripts/gen-icons.mjs"
@@ -25,6 +26,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.8.2",
+    "puppeteer": "^25.3.0",
     "sharp": "^0.33.5",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.33.1",
