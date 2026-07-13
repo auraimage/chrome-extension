@@ -18,20 +18,22 @@ Findings card of real, falsifiable measurements. Click an image to run the live
 edge demo: a genuine before/after (AVIF and WebP re-encode, smart-crop,
 blurhash) fetched from the AuraImage CDN. There is no synthesized composite
 number. The findings are measured, not scored. The full rationale, including why
-this is the product's first unauthenticated public route, is in
-[ADR 0024](../../docs/adr/0024-browser-extension-zero-auth-image-auditor.md).
+this is the product's first unauthenticated public route, is recorded in the
+product's ADR 0024; the short version lives on
+[auraimage.ai/extension](https://auraimage.ai/extension).
 
 ## Install (unpacked)
 
 ```bash
-pnpm --filter @auraimage/extension build
+pnpm install
+pnpm build
 ```
 
 Then in Chrome:
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked** and select `apps/extension/dist`.
+3. Click **Load unpacked** and select the `dist/` directory.
 
 Chrome shows the "read and change all your data on all websites" warning. That
 is the cost of ambient badges on every page; see the open-source note below.
@@ -39,11 +41,11 @@ is the cost of ambient badges on every page; see the open-source note below.
 ## Development
 
 ```bash
-pnpm --filter @auraimage/extension build       # one-shot build into dist/
-pnpm --filter @auraimage/extension dev         # esbuild --watch, rebuild on change
-pnpm --filter @auraimage/extension test        # vitest, pure modules
-pnpm --filter @auraimage/extension type-check  # tsc --noEmit
-pnpm --filter @auraimage/extension lint        # eslint
+pnpm build       # one-shot build into dist/
+pnpm dev         # esbuild --watch, rebuild on change
+pnpm test        # vitest, pure modules
+pnpm type-check  # tsc --noEmit
+pnpm lint        # eslint
 ```
 
 `build.mjs` compiles four bundles with esbuild (`content.js` as an IIFE,
@@ -144,8 +146,8 @@ src/shared        pure analysis, findings model, gate, url + snippet helpers (un
 ## Manual verification
 
 The browser-only paths must be verified by loading the unpacked build, not by
-scripting Chrome. Run `pnpm --filter @auraimage/extension build`, load
-`apps/extension/dist` per the install steps, then walk this list.
+scripting Chrome. Run `pnpm build`, load `dist/` per the install steps, then
+walk this list.
 
 ### Ambient pass
 
