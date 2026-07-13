@@ -1,0 +1,146 @@
+// AuraImage X-Ray service worker (MV3 ESM module). It is the only surface with
+// host_permissions, so it owns every edge fetch: content and popup, which are
+// bound by the page's CORS/CSP, message it here and it proxies to api.ts. Bytes
+// come back base64-encoded because ArrayBuffers don't survive sendMessage. It
+// also owns the image context menu and the offline compress fetch/encode, for
+// the same host-permission reason.
+import {
+  DemoExhausted,
+  EdgeUnavailable,
+  NotConfigured,
+  RateLimited,
+  demoAlt,
+  demoTransformBytes,
+  demoTransformStats
+} from '../shared/api';
+import {
+  MENU_DOWNLOAD_OFFLINE_ID,
+  MENU_OPTIMIZE_ID,
+  MENU_PARENT_ID,
+  OFFLINE_MENU_TITLE,
+  deriveFileName,
+  menuActionFor
+} from '../shared/context-menu';
+import { GATE_CTA_URL, isExportGated, recordExport } from '../shared/gate';
+import type { DemoAltRequest, DemoBytesRequest, DemoErrorKind, DemoResult, DemoStatsRequest } from '../shared/types';
+import { type EncodedImage, encodeOffline } from './offline-encode';
+
+chrome.runtime.onInstalled.addListener(() => {
+  // Rebuild from scratch so a reinstall/update never hits a duplicate-id error.
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: MENU_PARENT_ID, title: 'AuraImage', contexts: ['image'] });
+    chrome.contextMenus.create({
+      id: MENU_OPTIMIZE_ID,
+      parentId: MENU_PARENT_ID,
+      title: 'Optimize this image',
+      contexts: ['image']
+    });
+    chrome.contextMenus.create({
+      id: MENU_DOWNLOAD_OFFLINE_ID,
+      parentId: MENU_PARENT_ID,
+      title: OFFLINE_MENU_TITLE,
+      contexts: ['image']
+    });
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const action = menuActionFor(info.menuItemId);
+  const tabId = tab?.id;
+  if (!action || tabId === undefined || !info.srcUrl) return;
+  if (action === 'optimize') {
+    sendToTab(tabId, { type: 'aura:open-optimize', src: info.srcUrl });
+    return;
+  }
+  void handleOfflineDownload(tabId, info.srcUrl);
+});
+
+/** Fire-and-forget message to a tab; swallow "no receiving end" on restricted
+ *  pages (reading lastError suppresses the unchecked-error warning). */
+function sendToTab(tabId: number, message: unknown): void {
+  chrome.tabs.sendMessage(tabId, message, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
+/**
+ * Offline compress a right-clicked image and hand the bytes to the content
+ * script to download. The export passes through the same gate as edge exports,
+ * and is only counted once the content script confirms delivery (a restricted
+ * page has no receiver, so it must not over-count).
+ */
+async function handleOfflineDownload(tabId: number, srcUrl: string): Promise<void> {
+  if (await isExportGated()) {
+    sendToTab(tabId, {
+      type: 'aura:offline-notice',
+      text: 'free export limit reached.',
+      ctaHref: GATE_CTA_URL
+    });
+    return;
+  }
+
+  let encoded: EncodedImage;
+  try {
+    encoded = await encodeOffline(srcUrl);
+  } catch {
+    // Undecodable resource (SVG, exotic blob) or a failed fetch: fail quietly
+    // with a notice; nothing here is actionable to log.
+    sendToTab(tabId, { type: 'aura:offline-notice', text: 'could not compress this image offline.' });
+    return;
+  }
+
+  const fileName = deriveFileName(srcUrl, encoded.ext);
+  chrome.tabs.sendMessage(
+    tabId,
+    { type: 'aura:offline-download', base64: encoded.base64, contentType: encoded.contentType, fileName },
+    () => {
+      // A restricted page has no content script (lastError): skip silently so the
+      // export is never counted against the gate when nothing was delivered.
+      if (chrome.runtime.lastError) return;
+      void recordExport();
+    }
+  );
+}
+
+function isType<T extends { type: string }>(message: unknown, type: T['type']): message is T {
+  return typeof message === 'object' && message !== null && (message as { type?: string }).type === type;
+}
+
+/** Map a thrown api.ts error to the serializable result the callers branch on. */
+function toResult(error: unknown): DemoResult<never> {
+  let kind: DemoErrorKind = 'network';
+  if (error instanceof DemoExhausted) kind = 'exhausted';
+  else if (error instanceof RateLimited) kind = 'rate-limited';
+  else if (error instanceof NotConfigured) kind = 'not-configured';
+  else if (error instanceof EdgeUnavailable) kind = 'edge-unavailable';
+  else if (error instanceof DOMException && error.name === 'TimeoutError') kind = 'timeout';
+  const message = error instanceof Error ? error.message : 'demo request failed';
+  return { ok: false, error: kind, message };
+}
+
+/** Run an edge call and reply once, translating success/failure into a result. */
+function reply<T>(work: Promise<T>, sendResponse: (result: DemoResult<T>) => void): void {
+  work.then(
+    (value) => sendResponse({ ok: true, value }),
+    (error) => sendResponse(toResult(error))
+  );
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (isType<DemoStatsRequest>(message, 'aura:demo-stats')) {
+    reply(demoTransformStats(message.src, message.opts), sendResponse);
+    return true; // keep the channel open for the async reply
+  }
+  if (isType<DemoBytesRequest>(message, 'aura:demo-bytes')) {
+    reply(demoTransformBytes(message.src, message.opts), sendResponse);
+    return true;
+  }
+  if (isType<DemoAltRequest>(message, 'aura:demo-alt')) {
+    reply(
+      demoAlt(message.src).then((alt) => ({ alt })),
+      sendResponse
+    );
+    return true;
+  }
+  return false;
+});

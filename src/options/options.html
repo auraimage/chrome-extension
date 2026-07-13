@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AuraImage X-Ray options</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: oklch(0.985 0.003 260);
+        --card: oklch(0.985 0.003 260);
+        --fg: oklch(0.12 0.005 260);
+        --muted-fg: oklch(0.45 0.005 260);
+        --border: oklch(0.91 0.003 260);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: oklch(0.14 0.005 260);
+          --card: oklch(0.17 0.005 260);
+          --fg: oklch(0.95 0.003 260);
+          --muted-fg: oklch(0.65 0.005 260);
+          --border: oklch(0.28 0.005 260);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 48px 24px;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, 'Onest', 'Inter', -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 24px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+      }
+      .eyebrow {
+        margin: 0 0 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--muted-fg);
+      }
+      .name {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .hint {
+        margin: 12px 0 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--muted-fg);
+      }
+      label {
+        display: block;
+        margin: 20px 0 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--muted-fg);
+      }
+      input {
+        width: 100%;
+        padding: 8px 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.8125rem;
+        color: var(--fg);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+      }
+      button {
+        margin-top: 12px;
+        padding: 8px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--fg);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 9999px;
+        cursor: pointer;
+      }
+      .status {
+        margin: 12px 0 0;
+        min-height: 1.2em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--muted-fg);
+      }
+      .usage {
+        margin: 24px 0 0;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.75rem;
+        color: var(--muted-fg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <p class="eyebrow">options</p>
+      <h1 class="name">AuraImage X-Ray</h1>
+      <p class="hint">Point the extension at a different edge for local or staging work. Leave it empty to use the production CDN.</p>
+      <label for="edgeBase">edge base URL</label>
+      <input id="edgeBase" type="url" inputmode="url" spellcheck="false" placeholder="https://cdn.auraimage.ai" />
+      <button id="save" type="button">save</button>
+      <p id="status" class="status"></p>
+      <p id="usage" class="usage"></p>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>
