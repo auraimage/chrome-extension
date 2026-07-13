@@ -1,17 +1,19 @@
 # Chrome Web Store listing (draft)
 
-Draft copy for the Chrome Web Store submission. Publishing is a human decision;
-this file is the source text.
+Draft copy for the Chrome Web Store submission, tuned for store search.
+Publishing is a human decision; this file is the source text.
 
-## Name
+## Title (75 char max)
 
-AuraImage X-Ray
+> Image Optimizer & Audit: AVIF, WebP, Alt Text | AuraImage X-Ray
+
+(63 characters. Leads with the searchable phrase, keeps the brand at the end.)
 
 ## Summary (132 char max)
 
-> See what every image on a page really costs. Real AVIF/WebP before/after on click. Zero auth, open source. Measured, not scored.
+> Image optimizer and audit: AVIF/WebP on click, alt text, Core Web Vitals. Zero auth, open source, measured, not scored.
 
-(128 characters.)
+(119 characters.)
 
 ## Category
 
@@ -19,26 +21,52 @@ Developer Tools
 
 ## Full description
 
-AuraImage X-Ray badges every image on the page with its format and transfer
-size, then flags the ones costing you: oversized for their display box, missing
-alt text, no srcset. Open the popup for a Findings card you can copy or
-screenshot. It is real, falsifiable measurements with no invented health number.
-Measured, not scored.
+Audit and optimize every image on any page. AuraImage X-Ray badges each image
+with its real format and transfer size, flags the wasteful ones (oversized for
+their display box, missing alt text, no srcset), and on click runs a genuine
+AVIF and WebP optimization on the AuraImage edge. It is an image optimizer and
+page-weight auditor for developers who care about page speed and Core Web
+Vitals. The findings are real, falsifiable measurements with no invented health
+number: measured, not scored.
 
-Click any image to run a live edge demo. AuraImage fetches it, re-encodes it to
-AVIF and WebP, runs smart-crop and blurhash, and hands back a genuine
-before/after: 4.2 MB JPEG to 180 KB AVIF, not an estimate. Download the
-optimized file, copy a ready-to-paste `<picture>` snippet, or generate alt text.
-Right-click any image to save an offline WebP, encoded entirely on your device.
+What it does:
 
-Zero auth. No account, no sign-in. It works on any site, for anyone.
+- **Ambient image audit, 100% client-side.** Every image on the page is badged
+  with its format and transfer size, and the wasteful ones are flagged. This
+  pass makes no network calls and works offline.
+- **Real AVIF and WebP optimization on click.** AuraImage fetches the image,
+  re-encodes it to AVIF and WebP, and runs smart-crop and blurhash, handing back
+  a genuine before and after (for example 4.2 MB JPEG to 180 KB AVIF), not an
+  estimate.
+- **Copy-ready output.** Download the optimized AVIF or WebP, or copy a
+  ready-to-paste `<picture>` snippet straight into your markup.
+- **Alt text on demand.** Generate descriptive alt text for any image, powered
+  by Google Gemini.
+- **Offline WebP compression.** Right-click any image to save a smaller WebP,
+  encoded entirely on your own device with no network call.
+- **Shareable Findings card.** Roll the whole page up into a card with hostname,
+  image and byte totals, the wasteful count, estimated LCP saving, and flag
+  counts. Copy it as markdown or download it as a PNG.
+- **Zero auth.** No account, no sign-in. It works on any site, for anyone.
 
-The audit never leaves your browser. The only thing a click sends is the image
-URL, to a stateless endpoint that persists nothing. No analytics. No browsing
-history. The extension is open source, so the permission it asks for is
-auditable, not asserted.
+Your privacy: the audit never leaves your browser. The only thing a click sends
+is the image URL, to a stateless endpoint that persists nothing. The one
+exception is alt text, which forwards the resized image bytes to Google's Gemini
+API only when you ask for it. No analytics, no browsing history, no tracking.
+The full policy is linked below.
+
+Open source: the extension is open source, so the broad host permission it needs
+to badge images on every page is auditable, not asserted. Read the source, build
+it yourself, and load your own copy.
 
 Built by AuraImage, an AI-native image CDN for developers.
+
+## Links
+
+- Landing page: https://auraimage.ai/extension
+- Privacy policy: https://github.com/auraimage/chrome-extension/blob/main/PRIVACY.md
+- Source code: https://github.com/auraimage/chrome-extension
+- Support and contact: https://github.com/auraimage/chrome-extension/issues
 
 ## Screenshot shot-list (5)
 

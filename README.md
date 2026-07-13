@@ -1,5 +1,15 @@
 # AuraImage X-Ray
 
+[![CI](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml)
+
+A zero-auth Chrome extension that audits and optimizes the images on any page:
+real AVIF/WebP on click, alt text, and page-speed findings. Measured, not
+scored.
+
+**Landing page:** https://auraimage.ai/extension
+
+**Chrome Web Store:** coming soon
+
 AuraImage X-Ray is a zero-auth image auditor for the browser. It runs on any
 website, for anyone, with no account. It badges every image on the current page
 with its format and transfer size, flags the wasteful ones (oversized for their
