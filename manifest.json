@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AuraImage X-Ray",
-  "version": "0.0.1",
-  "description": "See what every image on the page really costs. Measured, not scored.",
+  "name": "Image Optimizer & Audit: AVIF, WebP, Alt Text | AuraImage X-Ray",
+  "version": "0.0.2",
+  "description": "Image optimizer and audit: AVIF/WebP on click, alt text, Core Web Vitals. Zero auth, open source, measured, not scored.",
   "permissions": ["contextMenus", "storage", "clipboardWrite"],
   "host_permissions": ["<all_urls>"],
   "background": {
