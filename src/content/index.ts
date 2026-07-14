@@ -1,9 +1,10 @@
 // AuraImage X-Ray content script (classic script, injected on every page).
 // Ambient pass: collect image facts from the DOM, analyze them with the Task 4
 // lib, and badge the page via the shadow-DOM overlay. Answers the popup's
-// aura:get-findings request and the aura:toggle-overlay command. Zero network
-// calls to the AuraImage edge.
+// aura:get-findings request. Zero network calls to the AuraImage edge; the
+// Size probe (ADR 0026) may re-request page images from their own hosts.
 import { aggregate, analyzeImage } from '../shared/analyze';
+import { BADGES_ENABLED_KEY, getBadgesEnabled, setBadgesEnabled } from '../shared/badge-switch';
 import { MUTED_HOSTS_KEY, isHostMuted } from '../shared/mute';
 import type {
   FindingsResponse,
@@ -16,9 +17,13 @@ import { collectFacts, startLcpObserver } from './collect';
 import { showOfflineNotice, triggerOfflineDownload } from './offline-download';
 import { createOptimizePanel } from './optimize-panel';
 import { type AnalyzedImage, createOverlay } from './overlay';
+import { probeOutcome, queueSizeProbes } from './size-probe';
 
 const optimizePanel = createOptimizePanel();
-const overlay = createOverlay((src) => optimizePanel.open(src));
+const overlay = createOverlay(
+  (src) => optimizePanel.open(src),
+  (next) => void setBadgesEnabled(next)
+);
 
 let latestFindings: PageFindings = aggregate([]);
 let renderedImageCount = 0;
@@ -26,11 +31,27 @@ let renderedImageCount = 0;
 /** Re-read the DOM, re-analyze, and rebuild the overlay + cached findings. */
 function recollect(): void {
   const collected = collectFacts();
+
+  // Fill timing-hidden sizes from settled Size probes; queue probes for the
+  // rest. Settled probes re-enter here (debounced) to update the badges.
+  const unprobed: string[] = [];
+  for (const { facts } of collected) {
+    if (facts.transferBytes !== null || facts.currentSrc.startsWith('data:')) continue;
+    const outcome = probeOutcome(facts.currentSrc);
+    if (outcome === undefined) unprobed.push(facts.currentSrc);
+    else if (outcome === 'unavailable') facts.sizeUnavailable = true;
+    else facts.transferBytes = outcome.bytes;
+  }
+
   const analyzed: AnalyzedImage[] = collected.map((c) => ({ findings: analyzeImage(c.facts), elements: c.elements }));
   latestFindings = aggregate(analyzed.map((a) => a.findings));
   renderedImageCount = collected.reduce((total, c) => total + c.elements.length, 0);
   overlay.render(analyzed);
+
+  queueSizeProbes(unprobed, debouncedProbeRecollect);
 }
+
+const debouncedProbeRecollect = debounce(recollect, 250);
 
 function debounce(fn: () => void, ms: number): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -40,18 +61,15 @@ function debounce(fn: () => void, ms: number): () => void {
   };
 }
 
-async function applyMuteState(): Promise<void> {
-  overlay.setVisible(!(await isHostMuted(location.hostname)));
+/** Site mute hides everything; the Badge switch hides badges but not the switcher. */
+async function applyVisibilityState(): Promise<void> {
+  const [muted, enabled] = await Promise.all([isHostMuted(location.hostname), getBadgesEnabled()]);
+  overlay.setMuted(muted);
+  overlay.setBadgesEnabled(enabled);
 }
 
 function isGetFindings(message: unknown): boolean {
   return typeof message === 'object' && message !== null && (message as { type?: string }).type === 'aura:get-findings';
-}
-
-function isToggleOverlay(message: unknown): boolean {
-  return (
-    typeof message === 'object' && message !== null && (message as { type?: string }).type === 'aura:toggle-overlay'
-  );
 }
 
 function messageType(message: unknown): string | undefined {
@@ -68,10 +86,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       renderedImageCount
     };
     sendResponse(response);
-    return false;
-  }
-  if (isToggleOverlay(message)) {
-    overlay.setVisible(!overlay.isVisible());
     return false;
   }
   switch (messageType(message)) {
@@ -97,7 +111,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function init(): Promise<void> {
-  await applyMuteState();
+  await applyVisibilityState();
   recollect();
   startLcpObserver(recollect);
 
@@ -111,9 +125,9 @@ async function init(): Promise<void> {
   const observer = new MutationObserver(debounce(recollect, 500));
   observer.observe(document.body ?? document.documentElement, { childList: true, subtree: true });
 
-  // Reflect mute/unmute performed from the popup.
+  // Reflect mute/unmute and Badge switch flips from the popup or other tabs.
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes[MUTED_HOSTS_KEY]) void applyMuteState();
+    if (area === 'sync' && (changes[MUTED_HOSTS_KEY] || changes[BADGES_ENABLED_KEY])) void applyVisibilityState();
   });
 }
 

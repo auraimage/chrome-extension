@@ -1,4 +1,4 @@
-import { buildBadgeLabel, dimsLine, flagLines, hasWarning, savingLine } from '../content/badge-label';
+import { buildBadgeLabel, dimsLine, flagLines, hasWarning, savingLine, sizeNoteLine } from '../content/badge-label';
 import { analyzeImage } from '../shared/analyze';
 import type { AmbientImageFacts } from '../shared/types';
 import { describe, expect, it } from 'vitest';
@@ -104,5 +104,34 @@ describe('savingLine', () => {
     const f = analyzeImage(baseFacts({ format: 'jpeg', naturalW: 900, displayW: 800, dpr: 1, transferBytes: 300_000 }));
     expect(f.oversized).toBe(false);
     expect(savingLine(f)).not.toBeNull();
+  });
+});
+
+describe('sizeNoteLine', () => {
+  it('is null while the size probe is still pending (unknown size, no terminal failure)', () => {
+    expect(sizeNoteLine(analyzeImage(baseFacts({ transferBytes: null })))).toBeNull();
+  });
+
+  it('explains a cross-origin hidden size once the probe has failed', () => {
+    const f = analyzeImage(baseFacts({ transferBytes: null, sizeUnavailable: true }));
+    expect(sizeNoteLine(f)).toBe('size unavailable (cross-origin)');
+  });
+
+  it('is null when the size is known, even with a stale unavailable marker', () => {
+    expect(sizeNoteLine(analyzeImage(baseFacts({ sizeUnavailable: true })))).toBeNull();
+  });
+
+  it('is null for data URIs (the inline data uri flag already explains them)', () => {
+    const f = analyzeImage(
+      baseFacts({ currentSrc: 'data:image/png;base64,AAAA', format: 'png', transferBytes: null, sizeUnavailable: true })
+    );
+    expect(sizeNoteLine(f)).toBeNull();
+  });
+
+  it('uses the generic wording for non-http schemes', () => {
+    const f = analyzeImage(
+      baseFacts({ currentSrc: 'blob:https://example.com/x', transferBytes: null, sizeUnavailable: true })
+    );
+    expect(sizeNoteLine(f)).toBe('size unavailable');
   });
 });

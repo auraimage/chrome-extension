@@ -4,7 +4,7 @@
 
 /**
  * Client-side static facts about a single image on the page. Gathered by the
- * ambient pass (Task 4) with zero network calls.
+ * ambient pass (Task 4) with no calls to the AuraImage edge.
  */
 export interface AmbientImageFacts {
   currentSrc: string;
@@ -19,6 +19,13 @@ export interface AmbientImageFacts {
   transferBytes: number | null;
   format: string | null;
   isLcp: boolean;
+  /**
+   * True once the Size probe (ADR 0026) has terminally failed for this
+   * resource: Resource Timing hid the bytes AND the probe could not recover
+   * them. Unset while a probe is still pending, so the hover panel never
+   * flashes a wrong explanation for a size that is about to arrive.
+   */
+  sizeUnavailable?: boolean;
   /**
    * How many distinct on-page render sizes share this image resource. The DOM
    * pass folds duplicate uses of one `currentSrc` into a single facts object
@@ -107,9 +114,14 @@ export interface FindingsResponse {
   renderedImageCount: number;
 }
 
-/** Popup/background to content script: show or hide the inline overlay. */
-export interface ToggleOverlayMessage {
-  type: 'aura:toggle-overlay';
+/**
+ * Content script to background: fetch a page image and return its byte size
+ * (the Size probe fallback, ADR 0026). Used only when the in-page fetch could
+ * not read the response; the content script rations these to 10 per page.
+ */
+export interface SizeProbeRequest {
+  type: 'aura:probe-size';
+  src: string;
 }
 
 /** Transform knobs shared by the stats and bytes edge calls. */
@@ -209,7 +221,7 @@ export interface OfflineNoticeMessage {
 export type AuraMessage =
   | PageFindingsMessage
   | GetFindingsMessage
-  | ToggleOverlayMessage
+  | SizeProbeRequest
   | DemoStatsRequest
   | DemoBytesRequest
   | DemoAltRequest

@@ -1,8 +1,9 @@
 // Popup entry point. Asks the active tab for its ambient findings, renders the
-// Findings card, and wires the copy-markdown / download-png / mute / overlay
-// actions. Restricted pages (chrome://, the Web Store) where the content script
-// cannot run degrade to a "can't read this page" message.
+// Findings card, and wires the copy-markdown / download-png / mute / badge
+// switch actions. Restricted pages (chrome://, the Web Store) where the content
+// script cannot run degrade to a "can't read this page" message.
 import { type AuraImageRef, parseAuraImageUrl } from '../shared/aura-url';
+import { getBadgesEnabled, setBadgesEnabled } from '../shared/badge-switch';
 import { GATE_CTA_URL, isExportGated, recordExport } from '../shared/gate';
 import { isHostMuted, setHostMuted } from '../shared/mute';
 import { buildAgentPrompt, buildPictureSnippet } from '../shared/snippet';
@@ -173,7 +174,6 @@ async function snippetControl(ref: AuraImageRef): Promise<HTMLElement> {
 function renderCard(
   app: HTMLElement,
   model: FindingsCardModel,
-  tabId: number,
   hostname: string,
   findings: PageFindings,
   pageUrl: string
@@ -230,9 +230,18 @@ function renderCard(
     })();
   });
 
-  const overlayButton = el('button', { type: 'button', textContent: 'toggle overlay' });
-  overlayButton.addEventListener('click', () => {
-    chrome.tabs.sendMessage(tabId, { type: 'aura:toggle-overlay' }, () => void chrome.runtime.lastError);
+  // The Badge switch: same persisted state as the on-page switcher, all sites.
+  const badgesLabel = (enabled: boolean): string => (enabled ? 'hide badges everywhere' : 'show badges everywhere');
+  const badgesButton = el('button', { type: 'button', textContent: badgesLabel(true) });
+  void getBadgesEnabled().then((enabled) => {
+    badgesButton.textContent = badgesLabel(enabled);
+  });
+  badgesButton.addEventListener('click', () => {
+    void (async () => {
+      const next = !(await getBadgesEnabled());
+      await setBadgesEnabled(next);
+      badgesButton.textContent = badgesLabel(next);
+    })();
   });
 
   const promptButton = el('button', { type: 'button', className: 'wide', textContent: 'copy agent prompt' });
@@ -247,7 +256,7 @@ function renderCard(
     })();
   });
 
-  const actions = el('div', { className: 'actions' }, [copyButton, pngButton, muteButton, overlayButton, promptButton]);
+  const actions = el('div', { className: 'actions' }, [copyButton, pngButton, muteButton, badgesButton, promptButton]);
   app.replaceChildren(card, actions);
 
   // Offer a real <picture> snippet only when an image is already on our edge.
@@ -279,7 +288,7 @@ async function main(): Promise<void> {
     findings: response.findings,
     imageCount: response.renderedImageCount
   });
-  renderCard(app, model, tab.id, hostname, response.findings, response.pageUrl);
+  renderCard(app, model, hostname, response.findings, response.pageUrl);
 }
 
 void main();

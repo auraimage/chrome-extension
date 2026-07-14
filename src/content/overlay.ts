@@ -5,7 +5,7 @@
 // 1px borders, 0.75rem panel radius, ui-monospace 11px, no shadows at rest,
 // dark scheme via prefers-color-scheme, transitions only when motion is allowed.
 import type { ImageFindings } from '../shared/types';
-import { buildBadgeLabel, dimsLine, flagLines, savingLine } from './badge-label';
+import { buildBadgeLabel, dimsLine, flagLines, savingLine, sizeNoteLine } from './badge-label';
 
 export interface AnalyzedImage {
   findings: ImageFindings;
@@ -15,8 +15,10 @@ export interface AnalyzedImage {
 export interface OverlayController {
   /** Rebuild the badge set from the latest analysis. */
   render(items: AnalyzedImage[]): void;
-  setVisible(visible: boolean): void;
-  isVisible(): boolean;
+  /** Site mute: hide the whole overlay host, switcher included. */
+  setMuted(muted: boolean): void;
+  /** Badge switch: hide/show badges but keep the on-page switcher reachable. */
+  setBadgesEnabled(enabled: boolean): void;
   destroy(): void;
 }
 
@@ -73,6 +75,21 @@ const STYLE = `
     .optimize { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
   }
   .optimize:hover { background: var(--card); }
+  /* The Badge switch pill. Lives outside .badges so it stays reachable when
+     badges are hidden; collapsed to a small dot in the off state, expanding on
+     hover so the page keeps only a minimal permanent artifact. */
+  .switch {
+    position: fixed; right: 12px; bottom: 12px;
+    display: inline-flex; align-items: center;
+    padding: 4px 8px; font: inherit; font-size: 11px; line-height: 1;
+    color: var(--fg); background: var(--card);
+    border: 1px solid var(--border); border-radius: 9999px;
+    cursor: pointer; pointer-events: auto;
+  }
+  .switch.off { width: 12px; height: 12px; padding: 0; }
+  .switch.off .switch-label { display: none; }
+  .switch.off:hover { width: auto; height: auto; padding: 4px 8px; }
+  .switch.off:hover .switch-label { display: inline; }
 `;
 
 function makeText(cls: string, text: string): HTMLElement {
@@ -82,7 +99,10 @@ function makeText(cls: string, text: string): HTMLElement {
   return el;
 }
 
-export function createOverlay(onOptimize: (src: string) => void): OverlayController {
+export function createOverlay(
+  onOptimize: (src: string) => void,
+  onBadgesToggle: (next: boolean) => void
+): OverlayController {
   const host = ensureOverlayHost();
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
   // Guard by our own id: the optimize panel shares this shadow root and injects
@@ -101,14 +121,46 @@ export function createOverlay(onOptimize: (src: string) => void): OverlayControl
     root.className = 'root';
     shadow.append(root);
   }
-  const container = root;
+
+  // Badges live in their own container so the Badge switch (its sibling
+  // inside the styled root) survives hiding them.
+  const existingBadges = root.querySelector<HTMLElement>('.badges');
+  const container = existingBadges ?? document.createElement('div');
+  if (!existingBadges) {
+    container.className = 'badges';
+    root.append(container);
+  }
 
   // img → its badge wrap. A Map keeps the per-frame reposition and the
   // IntersectionObserver callback O(visible) instead of scanning every badge.
   const byImg = new Map<HTMLImageElement, HTMLElement>();
   const visible = new Set<HTMLImageElement>();
-  let visibleState = true;
+  let badgesOn = true;
   let rafId = 0;
+
+  const switchLabel = document.createElement('span');
+  switchLabel.className = 'switch-label';
+  const switchButton = document.createElement('button');
+  switchButton.type = 'button';
+  switchButton.className = 'switch';
+  switchButton.style.display = 'none'; // shown once the page has badged images
+  switchButton.append(switchLabel);
+  switchButton.addEventListener('click', () => {
+    // Apply locally for instant feedback; persisting the Badge switch echoes
+    // the same state back through storage.onChanged (and into other tabs).
+    const next = !badgesOn;
+    setBadgesEnabled(next);
+    onBadgesToggle(next);
+  });
+  root.append(switchButton);
+
+  function syncSwitch(): void {
+    switchButton.style.display = byImg.size > 0 ? '' : 'none';
+    switchButton.classList.toggle('off', !badgesOn);
+    switchButton.setAttribute('aria-pressed', String(badgesOn));
+    switchButton.title = badgesOn ? 'hide AuraImage badges on all sites' : 'show AuraImage badges on all sites';
+    switchLabel.textContent = badgesOn ? `x-ray · ${byImg.size}` : 'x-ray';
+  }
 
   const io = new IntersectionObserver((entries) => {
     for (const entry of entries) {
@@ -124,7 +176,7 @@ export function createOverlay(onOptimize: (src: string) => void): OverlayControl
   });
 
   function positionAll(): void {
-    if (visibleState) {
+    if (badgesOn) {
       for (const img of visible) {
         const wrap = byImg.get(img);
         if (!wrap) continue;
@@ -167,6 +219,9 @@ export function createOverlay(onOptimize: (src: string) => void): OverlayControl
     panel.className = 'panel';
     panel.append(makeText('row muted', dimsLine(findings)));
 
+    const sizeNote = sizeNoteLine(findings);
+    if (sizeNote) panel.append(makeText('row muted', sizeNote));
+
     const flags = flagLines(findings);
     if (flags.length > 0) {
       const list = document.createElement('ul');
@@ -205,11 +260,17 @@ export function createOverlay(onOptimize: (src: string) => void): OverlayControl
       }
     }
     if (rafId === 0) rafId = requestAnimationFrame(positionAll);
+    syncSwitch();
   }
 
-  function setVisible(next: boolean): void {
-    visibleState = next;
-    host.style.display = next ? '' : 'none';
+  function setMuted(muted: boolean): void {
+    host.style.display = muted ? 'none' : '';
+  }
+
+  function setBadgesEnabled(enabled: boolean): void {
+    badgesOn = enabled;
+    container.style.display = enabled ? '' : 'none';
+    syncSwitch();
   }
 
   function destroy(): void {
@@ -221,8 +282,8 @@ export function createOverlay(onOptimize: (src: string) => void): OverlayControl
 
   return {
     render,
-    setVisible,
-    isVisible: () => visibleState,
+    setMuted,
+    setBadgesEnabled,
     destroy
   };
 }

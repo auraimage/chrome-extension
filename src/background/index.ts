@@ -2,8 +2,8 @@
 // host_permissions, so it owns every edge fetch: content and popup, which are
 // bound by the page's CORS/CSP, message it here and it proxies to api.ts. Bytes
 // come back base64-encoded because ArrayBuffers don't survive sendMessage. It
-// also owns the image context menu and the offline compress fetch/encode, for
-// the same host-permission reason.
+// also owns the image context menu, the offline compress fetch/encode, and the
+// Size probe fallback (ADR 0026), for the same host-permission reason.
 import {
   DemoExhausted,
   EdgeUnavailable,
@@ -22,8 +22,16 @@ import {
   menuActionFor
 } from '../shared/context-menu';
 import { GATE_CTA_URL, isExportGated, recordExport } from '../shared/gate';
-import type { DemoAltRequest, DemoBytesRequest, DemoErrorKind, DemoResult, DemoStatsRequest } from '../shared/types';
+import type {
+  DemoAltRequest,
+  DemoBytesRequest,
+  DemoErrorKind,
+  DemoResult,
+  DemoStatsRequest,
+  SizeProbeRequest
+} from '../shared/types';
 import { type EncodedImage, encodeOffline } from './offline-encode';
+import { probeSize } from './probe-size';
 
 chrome.runtime.onInstalled.addListener(() => {
   // Rebuild from scratch so a reinstall/update never hits a duplicate-id error.
@@ -140,6 +148,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       demoAlt(message.src).then((alt) => ({ alt })),
       sendResponse
     );
+    return true;
+  }
+  if (isType<SizeProbeRequest>(message, 'aura:probe-size')) {
+    reply(probeSize(message.src), sendResponse);
     return true;
   }
   return false;

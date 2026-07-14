@@ -29,6 +29,18 @@ export function dimsLine(f: ImageFindings): string {
   return `${naturalW}x${naturalH} natural, ${displayW}x${displayH} shown`;
 }
 
+/**
+ * Muted hover line explaining a missing size, or null. Shown only once the
+ * Size probe has terminally failed (`sizeUnavailable`): while a probe is
+ * pending the panel stays quiet rather than flashing an explanation for a size
+ * that is about to arrive. Data URIs return null — the `inline data uri` flag
+ * already explains them.
+ */
+export function sizeNoteLine(f: ImageFindings): string | null {
+  if (f.facts.transferBytes !== null || !f.facts.sizeUnavailable || f.dataUri) return null;
+  return /^https?:/i.test(f.facts.currentSrc) ? 'size unavailable (cross-origin)' : 'size unavailable';
+}
+
 /** Short lowercase lines describing each fired flag, for the hover panel. */
 export function flagLines(f: ImageFindings): string[] {
   const lines: string[] = [];
