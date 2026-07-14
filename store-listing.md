@@ -72,6 +72,27 @@ Built by AuraImage, an AI-native image CDN for developers.
 - Source code: https://github.com/auraimage/chrome-extension
 - Support and contact: https://github.com/auraimage/chrome-extension/issues
 
+## Graphic assets
+
+All three are generated files — never hand-edited.
+
+- **Store icon (128x128)**: `public/icons/128.png`, committed, the same file
+  the manifest ships, so the store listing and the installed toolbar always
+  match. The caret-tile artwork is 96x96 centered in a 16px transparent
+  margin, per the store's icon guideline. Regenerate with `pnpm gen-icons`.
+- **Small promo tile (440x280)**: `store-assets/promo-small-440x280.png` —
+  brand card with the caret-tile lockup, the `measured, not scored` tagline,
+  and a faint row of real badge chips.
+- **Marquee promo tile (1400x560)**: `store-assets/promo-marquee-1400x560.png`
+  — brand block on the left, the Findings-card popup capture
+  (`popup-demo-hero.png`) on the right.
+
+Like the screenshots, the tiles live in the gitignored `store-assets/` and
+are regenerated on demand; only the dashboard uploads are the artifact.
+
+Both tiles are 24-bit PNG with no alpha channel (a store requirement the
+generator asserts). Regenerate with `pnpm store-tiles`.
+
 ## Screenshot shot-list (5)
 
 1. **Badges on a heavy page.** An image-dense homepage (a news site or a photo

@@ -15,6 +15,7 @@
     "gen-icons": "node scripts/gen-icons.mts",
     "screenshots": "node scripts/screenshots.mts",
     "store-shots": "node scripts/store-shots.mts",
+    "store-tiles": "node scripts/store-tiles.mts",
     "demo:images": "node scripts/demo-images.mts"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "geist": "^1.5.1",
     "prettier": "3.9.5",
     "puppeteer": "^25.3.0",
     "sharp": "^0.33.5",
