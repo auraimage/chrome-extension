@@ -48,7 +48,7 @@ pnpm type-check  # tsc --noEmit
 pnpm lint        # eslint
 ```
 
-`build.mjs` compiles four bundles with esbuild (`content.js` as an IIFE,
+`build.mts` compiles four bundles with esbuild (`content.js` as an IIFE,
 `background.js` as an ESM service-worker module, `popup.js` and `options.js` for
 their pages) and copies `manifest.json`, the two HTML pages, and `public/icons`
 into `dist/`. After a rebuild, reload the extension in `chrome://extensions`:
@@ -106,15 +106,20 @@ branch instead of a tag fails fast with a clear message.
 
 ## Architecture
 
-Two surfaces, one rule: the ambient work is free and never leaves the browser;
+Two surfaces, one rule: the ambient work is free and never talks to AuraImage;
 every edge call is click-triggered and metered.
 
-- **Ambient pass** (always-on, 100% client-side). The content script collects
+- **Ambient pass** (always-on, local analysis). The content script collects
   DOM facts for each image (format, natural vs displayed dimensions, `alt`,
   `loading`, `srcset`, bytes from the Resource Timing API), analyzes them
   locally, badges the page through a shadow-DOM overlay, and feeds the popup's
-  Findings card. It never touches the network. It is unlimited, free, and works
-  offline.
+  Findings card. It never talks to the AuraImage edge. Its one network behavior
+  is the **Size probe** (ADR 0026): when a cross-origin server withholds byte
+  sizes from Resource Timing (no `Timing-Allow-Origin`), the extension
+  re-requests the image from its own host to measure it — normally a
+  browser-cache hit, with a background fallback capped at 10 real downloads per
+  page. It is unlimited and free; offline, sizes the browser hides simply stay
+  unknown and the hover panel says why.
 - **Demo transform** (click-triggered edge). Clicking an image's `optimize`
   action sends one thing to the demo endpoint: the image URL. The endpoint is
   anonymous, stateless, and rate-limited; it runs the real serve pipeline
@@ -137,8 +142,8 @@ every edge call is click-triggered and metered.
 Code map:
 
 ```
-src/content      ambient overlay, badges, optimize panel, offline-download UI
-src/background    the only fetch surface: demo edge client, context menu, offline encode
+src/content      ambient overlay, badges, size probe, optimize panel, offline-download UI
+src/background    demo edge client, context menu, offline encode, size-probe fallback
 src/popup         Findings card, copy/download actions
 src/shared        pure analysis, findings model, gate, url + snippet helpers (unit-tested)
 ```
@@ -234,12 +239,24 @@ walk this list.
 31. Regression: after using the optimize panel, ambient badges and hover panels
     are still fully styled. The overlay and the panel share one shadow root, and
     each must inject its own CSS regardless of construction order.
+32. Size probe: on a page whose images live on another origin without
+    `Timing-Allow-Origin` (subdomain CDNs are common), badges still show real
+    byte sizes after a moment. When a size truly cannot be measured, the hover
+    panel shows `size unavailable (cross-origin)` instead of silently omitting
+    it.
+33. Badge switch: a pill reading `x-ray · N` sits bottom-right on any page with
+    badges. Clicking it hides badges on every site and in every open tab, and
+    collapses the pill to a small dot; clicking the dot restores them. The
+    popup's `hide badges everywhere` button flips the same state. Muted sites
+    show neither badges nor the pill.
 
 ## Privacy
 
-The Ambient pass runs entirely in your browser. It reads the images on the page
-you are viewing and nothing else. Most click actions send exactly one thing to
-the AuraImage demo endpoint: the image URL. The exception is `suggest alt`,
+The Ambient pass runs in your browser and never reaches AuraImage. It reads the
+images on the page you are viewing; when a cross-origin server hides an image's
+byte size from Resource Timing, it re-requests that image from its own host to
+measure it (usually a cache hit, capped — see PRIVACY.md). Most click actions
+send exactly one thing to the AuraImage demo endpoint: the image URL. The exception is `suggest alt`,
 which forwards the resized image bytes (never your browsing history) to Google's
 Gemini API (`generativelanguage.googleapis.com`) to write the description, and
 only when you click it. AuraImage persists nothing either way (ADR 0024), there

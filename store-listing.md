@@ -31,9 +31,11 @@ number: measured, not scored.
 
 What it does:
 
-- **Ambient image audit, 100% client-side.** Every image on the page is badged
-  with its format and transfer size, and the wasteful ones are flagged. This
-  pass makes no network calls and works offline.
+- **Ambient image audit, local-first.** Every image on the page is badged with
+  its format and real transfer size, and the wasteful ones are flagged. Nothing
+  is sent to AuraImage for this; when a cross-origin server hides an image's
+  size from the browser, the extension re-requests the image from its own host
+  to measure it (usually straight from your cache, capped per page).
 - **Real AVIF and WebP optimization on click.** AuraImage fetches the image,
   re-encodes it to AVIF and WebP, and runs smart-crop and blurhash, handing back
   a genuine before and after (for example 4.2 MB JPEG to 180 KB AVIF), not an
@@ -49,8 +51,10 @@ What it does:
   counts. Copy it as markdown or download it as a PNG.
 - **Zero auth.** No account, no sign-in. It works on any site, for anyone.
 
-Your privacy: the audit never leaves your browser. The only thing a click sends
-is the image URL, to a stateless endpoint that persists nothing. The one
+Your privacy: the audit never reaches AuraImage. The ambient pass talks only to
+hosts the page already loaded images from, and only to measure sizes the
+browser hides. The only thing a click sends is the image URL, to a stateless
+endpoint that persists nothing. The one
 exception is alt text, which forwards the resized image bytes to Google's Gemini
 API only when you ask for it. No analytics, no browsing history, no tracking.
 The full policy is linked below.
@@ -76,9 +80,10 @@ Built by AuraImage, an AI-native image CDN for developers.
 2. **The Findings card.** The popup open on that page: hostname, images / total
    bytes / wasteful count, estimated LCP saving, the four flag counts, and the
    `measured, not scored` footer. The screenshot-ready artifact.
-3. **Before/after panel.** The optimize panel on one image showing the real
-   line (`original 4.2 MB jpeg, avif 180 KB, saves 96%`), the webp line, and the
-   blurhash preview. Proof, not estimate.
+3. **Before/after panel.** The optimize panel on one image: a `saves 1.1 MB
+   (78%)` headline over color-coded byte bars (red for the original, green for
+   avif/webp), the blurhash preview, and the smart-crop strip. Numbers come
+   from the live edge on a real image — proof, not estimate.
 4. **Smart-crop strip.** The three-thumbnail strip labeled cover / face / auto,
    showing the AI-native crop the plain browser compressor cannot do.
 5. **Competitor wedge line.** The popup on a page served by a known image CDN,
