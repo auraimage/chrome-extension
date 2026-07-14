@@ -2,8 +2,18 @@
 // confirm each one landed in dist/. Walk the manifest rather than hardcoding the
 // list: the referenced set changes as the extension grows, and the manifest is
 // the single source of truth for what ships.
-export function collectManifestRefs(manifest) {
-  const refs = [];
+
+/** The subset of an MV3 manifest that references bundled files. */
+export interface ManifestRefsSource {
+  background?: { service_worker?: string };
+  content_scripts?: { js?: string[] }[];
+  action?: { default_popup?: string };
+  options_page?: string;
+  icons?: Record<string, string>;
+}
+
+export function collectManifestRefs(manifest: ManifestRefsSource): string[] {
+  const refs: string[] = [];
 
   const serviceWorker = manifest.background?.service_worker;
   if (serviceWorker) refs.push(serviceWorker);

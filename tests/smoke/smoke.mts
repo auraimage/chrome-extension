@@ -9,11 +9,11 @@
 //   1. the MV3 service worker (background.js) registered, and
 //   2. the content script ran on a real page and injected its overlay host.
 import { existsSync, readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
+import { type Server, createServer } from 'node:http';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..', '..');
@@ -26,7 +26,7 @@ const HARD_TIMEOUT_MS = 60_000;
 const STEP_TIMEOUT_MS = 30_000;
 
 // The smoke test loads dist/, never src/, so a build is a hard precondition.
-function requireBuild() {
+function requireBuild(): void {
   if (!existsSync(dist) || !existsSync(join(dist, 'manifest.json'))) {
     console.error('smoke test failed: dist/manifest.json not found. Run "pnpm build" first.');
     process.exit(1);
@@ -37,7 +37,7 @@ function requireBuild() {
 // icon shown at 32px, the oversized-download signal the ambient analyzer looks
 // for) and one image with no alt attribute. Served over http, not file://, so
 // the <all_urls> content script actually runs against it.
-function startFixtureServer() {
+function startFixtureServer(): Promise<{ server: Server; url: string }> {
   const iconBytes = readFileSync(join(repoRoot, 'public/icons/128.png'));
   const html = [
     '<!doctype html>',
@@ -62,29 +62,30 @@ function startFixtureServer() {
 
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      resolve({ server, url: `http://127.0.0.1:${port}/` });
+      const address = server.address();
+      if (address === null || typeof address === 'string') throw new Error('no listen address');
+      resolve({ server, url: `http://127.0.0.1:${address.port}/` });
     });
   });
 }
 
-function closeServer(server) {
+function closeServer(server: Server): Promise<void> {
   return new Promise((resolve) => server.close(() => resolve()));
 }
 
 // enableExtensions loads the built extension and works in the default headless
 // mode. Under CI the runner is often root, where Chrome refuses its sandbox, so
 // relax it there only; locally the sandbox stays on.
-function launchOptions() {
-  const options = { enableExtensions: [dist] };
+function launchOptions(): Parameters<typeof puppeteer.launch>[0] {
+  const options: Parameters<typeof puppeteer.launch>[0] = { enableExtensions: [dist] };
   if (process.env.CI) options.args = ['--no-sandbox', '--disable-setuid-sandbox'];
   return options;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const { server, url } = await startFixtureServer();
-  let browser;
-  let timer;
+  let browser: Browser | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const work = (async () => {
       browser = await puppeteer.launch(launchOptions());
@@ -108,7 +109,7 @@ async function main() {
       return worker.url();
     })();
 
-    const timeout = new Promise((_resolve, reject) => {
+    const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => reject(new Error(`hard timeout after ${HARD_TIMEOUT_MS / 1000}s`)), HARD_TIMEOUT_MS);
     });
 
@@ -137,7 +138,7 @@ process.on('unhandledRejection', (reason) => {
 requireBuild();
 main()
   .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(`smoke test failed: ${error.message}`);
+  .catch((error: unknown) => {
+    console.error(`smoke test failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });

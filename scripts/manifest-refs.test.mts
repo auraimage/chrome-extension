@@ -2,8 +2,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { collectManifestRefs } from './manifest-refs.mjs';
-import { verifyDist } from './verify-dist.mjs';
+import { type ManifestRefsSource, collectManifestRefs } from './manifest-refs.mts';
+import { verifyDist } from './verify-dist.mts';
 
 const fullManifest = {
   manifest_version: 3,
@@ -36,18 +36,18 @@ describe('collectManifestRefs', () => {
   });
 
   it('returns an empty list when the manifest references nothing', () => {
-    expect(collectManifestRefs({ manifest_version: 3 })).toEqual([]);
+    expect(collectManifestRefs({ manifest_version: 3 } as ManifestRefsSource)).toEqual([]);
   });
 });
 
 describe('verifyDist', () => {
-  let distDir;
+  let distDir: string;
 
-  function writeManifest(manifest) {
+  function writeManifest(manifest: object): void {
     writeFileSync(join(distDir, 'manifest.json'), JSON.stringify(manifest));
   }
 
-  function touchRefs(manifest) {
+  function touchRefs(manifest: ManifestRefsSource): void {
     for (const ref of collectManifestRefs(manifest)) {
       const target = join(distDir, ref);
       mkdirSync(dirname(target), { recursive: true });
@@ -70,7 +70,7 @@ describe('verifyDist', () => {
     const result = verifyDist(distDir);
     expect(result.ok).toBe(true);
     expect(result.errors).toEqual([]);
-    expect(result.manifest.version).toBe('1.2.3');
+    expect(result.manifest?.version).toBe('1.2.3');
   });
 
   it('fails when a referenced file is missing from dist/', () => {

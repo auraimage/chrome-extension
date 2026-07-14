@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Field &amp; Frame — A Journal of Wilderness Photography</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600&family=Spline+Sans+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --paper: #fbf8f2;
+        --ink: #211d18;
+        --faded: #8a8177;
+        --rule: #d9d2c6;
+        --accent: #a3512b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: 'Fraunces', georgia, serif;
+        /* faint print grain */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+      }
+      .sheet {
+        max-width: 1188px;
+        margin: 0 auto;
+        padding: 34px 44px 90px;
+      }
+
+      /* ── masthead ─────────────────────────────────────────── */
+      header {
+        border-top: 3px double var(--ink);
+        padding-top: 8px;
+        border-bottom: 1px solid var(--ink);
+        padding-bottom: 22px;
+        margin-bottom: 10px;
+      }
+      .topline {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Spline Sans Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faded);
+        border-bottom: 1px solid var(--rule);
+        padding-bottom: 8px;
+        margin-bottom: 26px;
+      }
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-weight: 600;
+        font-size: 74px;
+        letter-spacing: 0.01em;
+        line-height: 1;
+        font-variant-ligatures: discretionary-ligatures;
+      }
+      h1 .amp {
+        font-weight: 300;
+        font-style: italic;
+        color: var(--accent);
+      }
+      .deck {
+        margin-top: 14px;
+        text-align: center;
+        font-family: 'Spline Sans Mono', monospace;
+        font-size: 11.5px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--faded);
+      }
+      .deck b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      /* ── hero ─────────────────────────────────────────────── */
+      .hero {
+        margin: 26px 0 8px;
+      }
+      .hero img {
+        width: 100%;
+        aspect-ratio: 21 / 9;
+        object-fit: cover;
+        display: block;
+      }
+      figure {
+        margin: 0;
+      }
+      figcaption {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 24px;
+        padding: 10px 2px 0;
+        font-family: 'Spline Sans Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--faded);
+      }
+      figcaption .no {
+        color: var(--accent);
+        font-weight: 500;
+      }
+      figcaption .title {
+        color: var(--ink);
+      }
+      .hero figcaption {
+        border-bottom: 1px solid var(--rule);
+        padding-bottom: 14px;
+      }
+
+      /* ── portfolio grid ───────────────────────────────────── */
+      .grid {
+        margin-top: 44px;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        column-gap: 28px;
+        row-gap: 52px;
+      }
+      .grid figure img {
+        width: 100%;
+        display: block;
+        object-fit: cover;
+      }
+      .s4 {
+        grid-column: span 4;
+      }
+      .s5 {
+        grid-column: span 5;
+      }
+      .s6 {
+        grid-column: span 6;
+      }
+      .s7 {
+        grid-column: span 7;
+      }
+      .s8 {
+        grid-column: span 8;
+      }
+      .r32 img {
+        aspect-ratio: 3 / 2;
+      }
+      .r45 img {
+        aspect-ratio: 4 / 5;
+      }
+      .r11 img {
+        aspect-ratio: 1 / 1;
+      }
+      .r169 img {
+        aspect-ratio: 16 / 9;
+      }
+
+      .interlude {
+        grid-column: span 12;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        column-gap: 28px;
+        align-items: center;
+        border-top: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+        padding: 34px 0;
+      }
+      .interlude blockquote {
+        grid-column: 2 / span 6;
+        margin: 0;
+        font-size: 30px;
+        font-weight: 300;
+        font-style: italic;
+        line-height: 1.35;
+      }
+      .interlude .attrib {
+        grid-column: 9 / span 3;
+        font-family: 'Spline Sans Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faded);
+      }
+
+      footer {
+        margin-top: 70px;
+        border-top: 1px solid var(--ink);
+        padding-top: 12px;
+        display: flex;
+        justify-content: space-between;
+        font-family: 'Spline Sans Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--faded);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <header>
+        <div class="topline">
+          <span>Vol. IV — The Wild Places</span>
+          <span>Quarterly · Est. MMXXVI</span>
+          <span>Plate Section, pp. 41–63</span>
+        </div>
+        <h1>Field <span class="amp">&amp;</span> Frame</h1>
+        <p class="deck">A journal of wilderness photography · <b>Fourteen plates</b> · Printed in three inks</p>
+      </header>
+
+      <figure class="hero">
+        <img src="images/plate-001-first-light.jpg" alt="First light on the high shoulder" />
+        <figcaption>
+          <span class="no">№ 001</span>
+          <span class="title">First light on the high shoulder</span>
+          <span>f/8 · 1/125 · ISO 64 · 4×5</span>
+        </figcaption>
+      </figure>
+
+      <div class="grid">
+        <figure class="s7 r32">
+          <img src="images/plate-002-river-bend.jpg" alt="The fjord bending through morning haze" />
+          <figcaption>
+            <span class="no">№ 002</span>
+            <span class="title">The fjord, midmorning</span>
+            <span>f/11 · 1/60</span>
+          </figcaption>
+        </figure>
+        <figure class="s5 r45">
+          <img src="images/plate-003-canyon-wall.jpg" alt="Canyon wall study in shadow" />
+          <figcaption>
+            <span class="no">№ 003</span>
+            <span class="title">Canyon wall study</span>
+            <span>f/16 · 1/30</span>
+          </figcaption>
+        </figure>
+
+        <figure class="s4 r11">
+          <img src="images/plate-004-night-sky.jpg" alt="Aurora over the pines" />
+          <figcaption>
+            <span class="no">№ 004</span>
+            <span class="title">Aurora over the pines</span>
+            <span>f/2.8 · 20s</span>
+          </figcaption>
+        </figure>
+        <figure class="s4 r11">
+          <img src="images/plate-005-fog-pines.png" />
+          <figcaption>
+            <span class="no">№ 005</span>
+            <span class="title">Fog in the pines</span>
+            <span>f/11 · 1/15</span>
+          </figcaption>
+        </figure>
+        <figure class="s4 r11">
+          <img src="images/plate-006-high-ridge.jpg" alt="High camp beneath the ridge" />
+          <figcaption>
+            <span class="no">№ 006</span>
+            <span class="title">High camp, beneath the ridge</span>
+            <span>f/13 · 1/90</span>
+          </figcaption>
+        </figure>
+
+        <div class="interlude">
+          <blockquote>“The negative is the score; the print is the performance — and the page is the concert hall.”</blockquote>
+          <span class="attrib">Editor's note<br />on the plate section</span>
+        </div>
+
+        <figure class="s5 r45">
+          <img src="images/plate-007-falls-mist.jpg" alt="A fall dissolving into mist" />
+          <figcaption>
+            <span class="no">№ 007</span>
+            <span class="title">Falls, dissolving</span>
+            <span>f/22 · 1/4</span>
+          </figcaption>
+        </figure>
+        <figure class="s7 r32">
+          <img src="images/plate-008-storm-dusk.jpg" alt="A storm passing offshore at dusk" />
+          <figcaption>
+            <span class="no">№ 008</span>
+            <span class="title">Storm passing, dusk</span>
+            <span>f/8 · 1/15</span>
+          </figcaption>
+        </figure>
+
+        <figure class="s6 r169">
+          <img src="images/plate-009-river-crossing.jpg" alt="A river crossing in autumn rain" />
+          <figcaption>
+            <span class="no">№ 009</span>
+            <span class="title">The river crossing, autumn rain</span>
+            <span>f/11 · 1/125</span>
+          </figcaption>
+        </figure>
+        <figure class="s6 r169">
+          <img src="images/plate-010-valley-wall.jpg" />
+          <figcaption>
+            <span class="no">№ 010</span>
+            <span class="title">The valley wall, late light</span>
+            <span>f/5.6 · 1/8</span>
+          </figcaption>
+        </figure>
+
+        <figure class="s4 r45">
+          <img src="images/plate-011-wave-study.jpg" />
+          <figcaption>
+            <span class="no">№ 011</span>
+            <span class="title">Breaking wave study</span>
+            <span>f/9 · 1/250</span>
+          </figcaption>
+        </figure>
+        <figure class="s4 r45">
+          <img src="images/plate-012-sea-stack.jpg" alt="The sea stack" />
+          <figcaption>
+            <span class="no">№ 012</span>
+            <span class="title">The sea stack</span>
+            <span>f/7.1 · 1/180</span>
+          </figcaption>
+        </figure>
+        <figure class="s4 r45">
+          <img src="images/plate-013-surf-above.webp" alt="Surf breaking, from above" />
+          <figcaption>
+            <span class="no">№ 013</span>
+            <span class="title">Surf from above</span>
+            <span>f/10 · 1/100</span>
+          </figcaption>
+        </figure>
+
+        <figure class="s8 r32">
+          <img src="images/plate-014-sea-arches.jpg" alt="Sea arches from the headland" />
+          <figcaption>
+            <span class="no">№ 014</span>
+            <span class="title">The arches, from the headland</span>
+            <span>f/8 · 1/45</span>
+          </figcaption>
+        </figure>
+      </div>
+
+      <footer>
+        <span>Field &amp; Frame — plate section</span>
+        <span>Set in Fraunces &amp; Spline Sans Mono</span>
+        <span>№ 001 – № 014</span>
+      </footer>
+    </div>
+  </body>
+</html>

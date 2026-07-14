@@ -5,7 +5,8 @@ import sharp from 'sharp';
 
 // Monochrome placeholder icon: a dark hue-260 square with a lighter "X" glyph
 // (the "X-Ray" mark). Run once via `pnpm gen-icons`; the PNGs are committed so
-// the build never depends on sharp.
+// the build never depends on sharp. Requires Node 24+ (native TypeScript type
+// stripping).
 const root = dirname(fileURLToPath(import.meta.url));
 const outDir = join(root, '..', 'public', 'icons');
 
@@ -13,7 +14,7 @@ const BG = '#08090b'; // oklch(0.14 0.005 260) equivalent
 const FG = '#ededf0'; // oklch(0.95 0.003 260) equivalent
 const SIZES = [16, 48, 128];
 
-function svg(size) {
+function svg(size: number): string {
   const inset = Math.round(size * 0.3);
   const stroke = Math.max(1, Math.round(size * 0.09));
   const radius = Math.round(size * 0.22);
