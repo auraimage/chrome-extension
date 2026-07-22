@@ -29,17 +29,16 @@ jobs:
       - run: pnpm type-check
       - run: pnpm test
       - run: pnpm build
-      - run: pnpm verify-dist
-      - run: pnpm run pack
+      - run: pnpm zip
 
-      # puppeteer's Chrome download is a postinstall that pnpm 10 blocks by
-      # default, so fetch the browser explicitly before the smoke test loads it.
-      - run: pnpm exec puppeteer browsers install chrome
-
-      - run: pnpm test:smoke
+      # WXT generates the manifest and owns bundling, so the old dist-integrity
+      # check is gone; the e2e loads the built extension in real Chrome instead.
+      # Extensions load headless only via the `chromium` channel.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
 
       - uses: actions/upload-artifact@v4
         with:
           name: auraimage-x-ray
-          path: auraimage-x-ray-v*.zip
+          path: .output/*-chrome.zip
           if-no-files-found: error

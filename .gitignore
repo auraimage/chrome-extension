@@ -1,6 +1,8 @@
 node_modules/
 .output/
 .wxt/
+test-results/
+playwright-report/
 *.zip
 .turbo/
 store-assets/

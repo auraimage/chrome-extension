@@ -8,6 +8,8 @@ import { WxtVitest } from 'wxt/testing/vitest-plugin';
 export default defineConfig({
   plugins: [WxtVitest()],
   test: {
-    environment: 'node'
+    environment: 'node',
+    // Unit tests only; the Playwright e2e under tests/ runs via `pnpm test:e2e`.
+    include: ['src/**/*.test.ts']
   }
 });

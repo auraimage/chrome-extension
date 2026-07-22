@@ -9,6 +9,11 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   imports: false,
+  // On-brand zip name (e.g. auraimage-x-ray-0.0.3-chrome.zip) rather than the
+  // mangled scoped package name; the release workflow globs *-chrome.zip.
+  zip: {
+    name: 'auraimage-x-ray'
+  },
   manifest: {
     name: 'Image Optimizer & Audit: AVIF, WebP, Alt Text | AuraImage X-Ray',
     description:

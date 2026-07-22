@@ -33,42 +33,50 @@ Then in Chrome:
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode** (top right).
-3. Click **Load unpacked** and select the `dist/` directory.
+3. Click **Load unpacked** and select the `.output/chrome-mv3/` directory.
 
 Chrome shows the "read and change all your data on all websites" warning. That
 is the cost of ambient badges on every page; see the open-source note below.
 
 ## Development
 
+Built with [WXT](https://wxt.dev).
+
 ```bash
-pnpm build       # one-shot build into dist/
-pnpm dev         # esbuild --watch, rebuild on change
-pnpm test        # vitest, pure modules
-pnpm type-check  # tsc --noEmit
+pnpm dev         # WXT dev server: opens Chrome with the extension, HMR + auto-reload
+pnpm build       # one-shot production build into .output/chrome-mv3/
+pnpm zip         # package .output/auraimage-x-ray-<version>-chrome.zip for the store
+pnpm test        # vitest on WxtVitest + fake-browser
+pnpm test:e2e    # Playwright: load the built extension in real Chrome
+pnpm type-check  # wxt prepare && tsc --noEmit
 pnpm lint        # eslint
 ```
 
-`build.mts` compiles four bundles with esbuild (`content.js` as an IIFE,
-`background.js` as an ESM service-worker module, `popup.js` and `options.js` for
-their pages) and copies `manifest.json`, the two HTML pages, and `public/icons`
-into `dist/`. After a rebuild, reload the extension in `chrome://extensions`:
-watch mode recompiles the bundles but Chrome does not hot-reload a running
-service worker.
+`pnpm dev` runs the WXT dev server, which launches its own Chrome with the
+extension loaded and hot-reloads on change — no manual `chrome://extensions`
+reload. The four entrypoints live under `src/entrypoints` (`background.ts` and
+`content.ts` as `defineBackground`/`defineContentScript`, `popup/` and
+`options/` as HTML pages); everything else under `src/` is plain library code.
+WXT generates `manifest.json` from `wxt.config.ts`.
 
-The test suite covers the pure modules only (analysis, findings model, markdown,
-card layout, snippet, competitors, format, gate, edge client, URL parser,
-context-menu routing). The browser-only paths (`OffscreenCanvas`,
-`createImageBitmap`, `PerformanceObserver`) are not runnable under Node and are
-covered by the manual checklist below.
+To point a dev build at a local or staging edge, set `WXT_EDGE_BASE` in
+`.env.development` (default `https://cdn.auraimage.localhost`); `getEdgeBase`
+resolves a runtime `chrome.storage.sync` override first, then that env var, then
+the production default. Production bundles carry no dev env var.
+
+`pnpm test` runs the unit suite on WXT's `fake-browser`; the "extension loads in
+a real Chrome" class (broken manifest, service worker that never registers,
+content script that crashes) is covered by the Playwright e2e (`pnpm test:e2e`),
+which loads the built `.output/chrome-mv3/` via the `chromium` channel.
 
 ## Releasing
 
-The version lives in exactly one place: `version` in `manifest.json`. There is
-no separate source of truth (the `package.json` version is unused). To cut a
-release, bump that field, commit, and push a matching tag:
+The version lives in exactly one place: `version` in `package.json` (WXT derives
+the manifest version from it). To cut a release, bump that field, commit, and
+push a matching tag:
 
 ```bash
-# edit manifest.json: "version": "0.1.0"
+# edit package.json: "version": "0.1.0"
 git commit -am "release: v0.1.0"
 git tag v0.1.0
 git push --tags
@@ -76,33 +84,30 @@ git push --tags
 
 The `v*` tag triggers `.github/workflows/release.yml`, which:
 
-1. Fails fast unless the tag equals `v{manifest.json version}`, so a mistyped
-   tag or a forgotten manifest bump stops the run before anything ships.
-2. Runs the full CI gauntlet (lint, type-check, test, build, verify-dist, pack,
-   smoke).
+1. Fails fast unless the tag equals `v{package.json version}`, so a mistyped tag
+   or a forgotten version bump stops the run before anything ships.
+2. Runs the full CI gauntlet (lint, type-check, test, build, zip, e2e).
 3. Creates a GitHub Release named after the tag with generated notes and the
-   packed `auraimage-x-ray-v*.zip` attached.
-4. Uploads and publishes that zip to the Chrome Web Store, but only when the
-   store secrets are configured. Without them the store steps are skipped and
-   the run logs a notice; the GitHub Release is still created either way.
+   `auraimage-x-ray-<version>-chrome.zip` attached.
+4. Submits that zip to the Chrome Web Store via `wxt submit`, but only when the
+   store secrets are configured. Without them the submit step is skipped and the
+   run logs a notice; the GitHub Release is still created either way.
 
-Chrome Web Store publishing needs five repository secrets:
+Chrome Web Store submission needs four repository secrets (read by `wxt submit`):
 
-- `CWS_PUBLISHER_ID`: the publisher ID from the Chrome Web Store developer
-  dashboard.
-- `CWS_EXTENSION_ID`: the item ID of the listing (the id in its store URL).
-- `CWS_CLIENT_ID` and `CWS_CLIENT_SECRET`: a Google Cloud OAuth 2.0 client
+- `CHROME_EXTENSION_ID`: the item ID of the listing (the id in its store URL).
+- `CHROME_CLIENT_ID` and `CHROME_CLIENT_SECRET`: a Google Cloud OAuth 2.0 client
   (Desktop app type) with the Chrome Web Store API enabled.
-- `CWS_REFRESH_TOKEN`: a refresh token minted once for that client against the
-  `https://www.googleapis.com/auth/chromewebstore` scope.
+- `CHROME_REFRESH_TOKEN`: a refresh token minted once for that client against
+  the `https://www.googleapis.com/auth/chromewebstore` scope.
 
-If the store upload fails after the GitHub Release is already created (an
-expired refresh token, a Google-side outage), do not retag. Re-run the release
-from the Actions tab: pick the `release` workflow, choose **Run workflow**, and
-select the existing `vX.Y.Z` tag as the ref. The run detects the existing
-GitHub Release and re-attaches the zip with `--clobber` instead of failing, then
-retries the store upload and publish. A `workflow_dispatch` run pointed at a
-branch instead of a tag fails fast with a clear message.
+If the store submit fails after the GitHub Release is already created (an expired
+refresh token, a Google-side outage), do not retag. Re-run the release from the
+Actions tab: pick the `release` workflow, choose **Run workflow**, and select the
+existing `vX.Y.Z` tag as the ref. The run detects the existing GitHub Release and
+re-attaches the zip with `--clobber` instead of failing, then retries the store
+submit. A `workflow_dispatch` run pointed at a branch instead of a tag fails fast
+with a clear message.
 
 ## Architecture
 
@@ -142,7 +147,8 @@ every edge call is click-triggered and metered.
 Code map:
 
 ```
-src/content      ambient overlay, badges, size probe, optimize panel, offline-download UI
+src/entrypoints   background, content, popup, options (the four WXT entrypoints)
+src/content       ambient overlay, badges, size probe, optimize panel, offline-download UI
 src/background    demo edge client, context menu, offline encode, size-probe fallback
 src/popup         Findings card, copy/download actions
 src/shared        pure analysis, findings model, gate, url + snippet helpers (unit-tested)
@@ -151,8 +157,8 @@ src/shared        pure analysis, findings model, gate, url + snippet helpers (un
 ## Manual verification
 
 The browser-only paths must be verified by loading the unpacked build, not by
-scripting Chrome. Run `pnpm build`, load `dist/` per the install steps, then
-walk this list.
+scripting Chrome. Run `pnpm build`, load `.output/chrome-mv3/` per the install
+steps, then walk this list.
 
 ### Ambient pass
 
@@ -269,4 +275,4 @@ applies its own data handling to the alt call. The full policy is in
 The extension is open source. The broad host permission ("read and change all
 your data on all websites") is what makes ambient badges on every page possible.
 Open source is the mitigation: the permission usage is auditable, not asserted.
-Read the source, build it yourself, and load your own `dist/`.
+Read the source, build it yourself, and load your own `.output/chrome-mv3/`.
