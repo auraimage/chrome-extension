@@ -1,4 +1,4 @@
-import { buildBadgeLabel, dimsLine, flagLines, hasWarning, savingLine, sizeNoteLine } from '../content/badge-label';
+import { buildBadgeLabel, buildPanelModel, hasWarning } from '../content/badge-label';
 import { analyzeImage } from '../shared/analyze';
 import type { AmbientImageFacts } from '../shared/types';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +20,10 @@ function baseFacts(overrides: Partial<AmbientImageFacts> = {}): AmbientImageFact
     isLcp: false,
     ...overrides
   };
+}
+
+function model(overrides: Partial<AmbientImageFacts> = {}) {
+  return buildPanelModel(analyzeImage(baseFacts(overrides)));
 }
 
 describe('buildBadgeLabel', () => {
@@ -52,50 +56,93 @@ describe('hasWarning', () => {
   });
 });
 
-describe('dimsLine', () => {
-  it('reports natural then shown dimensions', () => {
-    const line = dimsLine(analyzeImage(baseFacts({ naturalW: 1600, naturalH: 1200, displayW: 400, displayH: 300 })));
-    expect(line).toBe('1600x1200 natural, 400x300 shown');
+describe('buildPanelModel header', () => {
+  it('carries the format token and formatted size', () => {
+    const m = model({ format: 'jpeg', transferBytes: 412_000 });
+    expect(m.format).toBe('jpeg');
+    expect(m.size).toBe('412 KB');
+  });
+
+  it('falls back to "img" and a null size when unknown', () => {
+    const m = model({ format: null, transferBytes: null });
+    expect(m.format).toBe('img');
+    expect(m.size).toBeNull();
+  });
+
+  it('marks the LCP element', () => {
+    expect(model().isLcp).toBe(false);
+    expect(model({ isLcp: true }).isLcp).toBe(true);
   });
 });
 
-describe('flagLines', () => {
+describe('buildPanelModel status', () => {
+  it('reports "no flags" in the win tone for a clean image', () => {
+    expect(model().status).toEqual({ text: 'no flags', tone: 'win' });
+  });
+
+  it('counts a single flag in the singular', () => {
+    expect(model({ loading: 'eager' }).status).toEqual({ text: '1 flag', tone: 'loss' });
+  });
+
+  it('counts multiple flags in the plural', () => {
+    expect(model({ loading: 'eager', alt: null }).status).toEqual({ text: '2 flags', tone: 'loss' });
+  });
+});
+
+describe('buildPanelModel facts', () => {
+  it('reports natural and shown dimensions', () => {
+    const m = model({ naturalW: 1600, naturalH: 1200, displayW: 400, displayH: 300 });
+    expect(m.facts).toContainEqual({ label: 'natural', value: '1600×1200' });
+    expect(m.facts).toContainEqual({ label: 'shown', value: '400×300' });
+  });
+
+  it('appends the device pixel ratio when it is not 1', () => {
+    const m = model({ dpr: 2 });
+    expect(m.facts).toContainEqual({ label: 'shown', value: '800×600 @2x' });
+  });
+
+  it('adds a "used" row only when the resource renders in several places', () => {
+    expect(model().facts.some((f) => f.label === 'used')).toBe(false);
+    expect(model({ displayContexts: 3 }).facts).toContainEqual({ label: 'used', value: '3 places' });
+  });
+});
+
+describe('buildPanelModel flags', () => {
   it('is empty for a clean image', () => {
-    expect(flagLines(analyzeImage(baseFacts()))).toEqual([]);
+    expect(model().flags).toEqual([]);
   });
 
   it('lists oversized with its rounded factor and the legacy format token', () => {
-    const lines = flagLines(analyzeImage(baseFacts({ naturalW: 2000, displayW: 500, dpr: 1, format: 'jpeg' })));
-    expect(lines).toContain('oversized 4x');
-    expect(lines).toContain('legacy jpeg');
+    const m = model({ naturalW: 2000, displayW: 500, dpr: 1, format: 'jpeg' });
+    expect(m.flags).toContain('oversized 4x');
+    expect(m.flags).toContain('legacy jpeg');
   });
 
   it('reports a missing alt attribute', () => {
-    expect(flagLines(analyzeImage(baseFacts({ alt: null })))).toContain('no alt text');
+    expect(model({ alt: null }).flags).toContain('no alt text');
   });
 
   it('reports an empty alt attribute distinctly', () => {
-    expect(flagLines(analyzeImage(baseFacts({ alt: '  ' })))).toContain('empty alt text');
+    expect(model({ alt: '  ' }).flags).toContain('empty alt text');
   });
 
   it('contains no em dash', () => {
-    const lines = flagLines(analyzeImage(baseFacts({ loading: 'eager', format: 'png', alt: null })));
-    expect(lines.join('\n')).not.toContain('—');
+    const m = model({ loading: 'eager', format: 'png', alt: null });
+    expect(m.flags.join('\n')).not.toContain('—');
   });
 });
 
-describe('savingLine', () => {
+describe('buildPanelModel saving', () => {
   it('is null when no bytes are saved', () => {
-    expect(savingLine(analyzeImage(baseFacts()))).toBeNull();
+    expect(model().saving).toBeNull();
   });
 
   it('is null when transfer bytes are unknown', () => {
-    expect(savingLine(analyzeImage(baseFacts({ format: 'jpeg', transferBytes: null })))).toBeNull();
+    expect(model({ format: 'jpeg', transferBytes: null }).saving).toBeNull();
   });
 
-  it('labels a nonzero saving as an estimate', () => {
-    const line = savingLine(analyzeImage(baseFacts({ format: 'jpeg', transferBytes: 400_000 })));
-    expect(line).toMatch(/^est\. saving \d/);
+  it('labels a nonzero saving as an estimate with a percent of the transfer', () => {
+    expect(model({ format: 'jpeg', transferBytes: 400_000 }).saving).toMatch(/^est\. saving \d.* · \d+%$/);
   });
 
   it('reports a saving even when oversized is false (continuous estimate vs 1.5x gate)', () => {
@@ -103,35 +150,35 @@ describe('savingLine', () => {
     // legacy re-encode term still yields a nonzero estimate.
     const f = analyzeImage(baseFacts({ format: 'jpeg', naturalW: 900, displayW: 800, dpr: 1, transferBytes: 300_000 }));
     expect(f.oversized).toBe(false);
-    expect(savingLine(f)).not.toBeNull();
+    expect(buildPanelModel(f).saving).not.toBeNull();
   });
 });
 
-describe('sizeNoteLine', () => {
+describe('buildPanelModel size note', () => {
   it('is null while the size probe is still pending (unknown size, no terminal failure)', () => {
-    expect(sizeNoteLine(analyzeImage(baseFacts({ transferBytes: null })))).toBeNull();
+    expect(model({ transferBytes: null }).note).toBeNull();
   });
 
   it('explains a cross-origin hidden size once the probe has failed', () => {
-    const f = analyzeImage(baseFacts({ transferBytes: null, sizeUnavailable: true }));
-    expect(sizeNoteLine(f)).toBe('size unavailable (cross-origin)');
+    expect(model({ transferBytes: null, sizeUnavailable: true }).note).toBe('size unavailable (cross-origin)');
   });
 
   it('is null when the size is known, even with a stale unavailable marker', () => {
-    expect(sizeNoteLine(analyzeImage(baseFacts({ sizeUnavailable: true })))).toBeNull();
+    expect(model({ sizeUnavailable: true }).note).toBeNull();
   });
 
   it('is null for data URIs (the inline data uri flag already explains them)', () => {
-    const f = analyzeImage(
-      baseFacts({ currentSrc: 'data:image/png;base64,AAAA', format: 'png', transferBytes: null, sizeUnavailable: true })
-    );
-    expect(sizeNoteLine(f)).toBeNull();
+    const m = model({
+      currentSrc: 'data:image/png;base64,AAAA',
+      format: 'png',
+      transferBytes: null,
+      sizeUnavailable: true
+    });
+    expect(m.note).toBeNull();
   });
 
   it('uses the generic wording for non-http schemes', () => {
-    const f = analyzeImage(
-      baseFacts({ currentSrc: 'blob:https://example.com/x', transferBytes: null, sizeUnavailable: true })
-    );
-    expect(sizeNoteLine(f)).toBe('size unavailable');
+    const m = model({ currentSrc: 'blob:https://example.com/x', transferBytes: null, sizeUnavailable: true });
+    expect(m.note).toBe('size unavailable');
   });
 });
