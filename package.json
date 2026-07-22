@@ -1,17 +1,21 @@
 {
   "name": "@auraimage/extension",
-  "version": "0.0.0",
+  "version": "0.0.3",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "node build.mts",
-    "dev": "node build.mts --watch",
-    "type-check": "tsc --noEmit",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare",
+    "type-check": "wxt prepare && tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint --fix \"src/**/*.ts\"",
     "test": "vitest run",
-    "test:smoke": "node tests/smoke/smoke.mts",
-    "verify-dist": "node scripts/verify-dist.mts",
-    "pack": "node scripts/pack.mts",
+    "test:e2e": "playwright test",
     "gen-icons": "node scripts/gen-icons.mts",
     "screenshots": "node scripts/screenshots.mts",
     "store-shots": "node scripts/store-shots.mts",
@@ -25,7 +29,6 @@
     "@clack/prompts": "^0.9.1",
     "@eslint/js": "^9.39.4",
     "@trivago/prettier-plugin-sort-imports": "^6.0.2",
-    "@types/chrome": "^0.2.2",
     "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
@@ -36,6 +39,7 @@
     "sharp": "^0.33.5",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.33.1",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wxt": "^0.20.27"
   }
 }

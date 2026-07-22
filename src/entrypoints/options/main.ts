@@ -2,8 +2,9 @@
 // URL; empty falls back to the production default) and a read-only view of the
 // export allowance. There is deliberately no gate reset here (Q4: no self-serve
 // way to refill the free exports).
-import { DEFAULT_EDGE_BASE, EDGE_BASE_STORAGE_KEY } from '../shared/config';
-import { FREE_EXPORT_ALLOWANCE, getExportsUsed, remainingExports } from '../shared/gate';
+import { DEFAULT_EDGE_BASE, EDGE_BASE_STORAGE_KEY } from '@/shared/config';
+import { FREE_EXPORT_ALLOWANCE, getExportsUsed, remainingExports } from '@/shared/gate';
+import { browser } from 'wxt/browser';
 
 function byId<T extends HTMLElement>(id: string): T | null {
   return document.getElementById(id) as T | null;
@@ -35,7 +36,7 @@ async function main(): Promise<void> {
   const usage = byId<HTMLElement>('usage');
   if (!input || !save || !status || !usage) return;
 
-  const stored = await chrome.storage.sync.get(EDGE_BASE_STORAGE_KEY);
+  const stored = await browser.storage.sync.get(EDGE_BASE_STORAGE_KEY);
   const current = stored[EDGE_BASE_STORAGE_KEY];
   if (typeof current === 'string') input.value = current;
 
@@ -49,10 +50,10 @@ async function main(): Promise<void> {
         return;
       }
       if (result.value === '') {
-        await chrome.storage.sync.remove(EDGE_BASE_STORAGE_KEY);
+        await browser.storage.sync.remove(EDGE_BASE_STORAGE_KEY);
         status.textContent = `using the default (${DEFAULT_EDGE_BASE})`;
       } else {
-        await chrome.storage.sync.set({ [EDGE_BASE_STORAGE_KEY]: result.value });
+        await browser.storage.sync.set({ [EDGE_BASE_STORAGE_KEY]: result.value });
         status.textContent = 'saved';
       }
     })();

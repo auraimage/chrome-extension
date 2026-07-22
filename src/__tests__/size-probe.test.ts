@@ -1,21 +1,34 @@
 import type * as sizeProbe from '../content/size-probe';
 import type { ProbeOutcome } from '../content/size-probe';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { type browser } from 'wxt/browser';
 
 type ProbeModule = typeof sizeProbe;
+type Browser = typeof browser;
 
-// Each test imports a fresh module instance: the probe memoizes outcomes for
-// the page's lifetime, and vi.resetModules() is that page reload.
-async function freshModule(): Promise<ProbeModule> {
+// Each test imports a fresh module instance: the probe memoizes outcomes for the
+// page's lifetime, and vi.resetModules() is that page reload. The `browser` is
+// re-imported in the same reset epoch so it is the exact instance the fresh probe
+// module uses, which is what the sendMessage spy must target.
+async function freshModule(): Promise<{ probe: ProbeModule; browser: Browser }> {
   vi.resetModules();
-  return import('../content/size-probe');
+  const probe = await import('../content/size-probe');
+  const { browser: freshBrowser } = await import('wxt/browser');
+  return { probe, browser: freshBrowser };
 }
 
 type SendMessage = (message: unknown, callback: (response?: unknown) => void) => void;
 
-function stubChrome(sendMessage: SendMessage): ReturnType<typeof vi.fn> {
-  const mock = vi.fn(sendMessage);
-  vi.stubGlobal('chrome', { runtime: { sendMessage: mock, lastError: undefined } });
+// size-probe.ts falls back to browser.runtime.sendMessage (callback style); spy on
+// the fresh instance so the test drives the background reply. fake-browser seeds
+// runtime.lastError with a truthy { message: '' }, but Chrome leaves it undefined
+// unless the call errored, so clear it before invoking the reply callback.
+function stubSendMessage(target: Browser, sendMessage: SendMessage): ReturnType<typeof vi.fn> {
+  const mock = vi.fn((message: unknown, callback: (response?: unknown) => void) => {
+    (target.runtime as { lastError?: unknown }).lastError = undefined;
+    sendMessage(message, callback);
+  });
+  vi.spyOn(target.runtime, 'sendMessage').mockImplementation(mock as never);
   return mock;
 }
 
@@ -34,14 +47,15 @@ async function settled(probe: ProbeModule, url: string): Promise<ProbeOutcome> {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('queueSizeProbes', () => {
   it('measures via the in-page fetch and memoizes the outcome', async () => {
-    const probe = await freshModule();
+    const { probe, browser } = await freshModule();
     const fetchMock = vi.fn(async () => okResponse(2_300));
     vi.stubGlobal('fetch', fetchMock);
-    const sendMessage = stubChrome(vi.fn());
+    const sendMessage = stubSendMessage(browser, vi.fn());
     const onSettled = vi.fn();
 
     probe.queueSizeProbes(['https://cdn.example.com/a.png'], onSettled);
@@ -56,14 +70,14 @@ describe('queueSizeProbes', () => {
   });
 
   it('falls back to the background when the page fetch cannot read the response', async () => {
-    const probe = await freshModule();
+    const { probe, browser } = await freshModule();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
         throw new TypeError('CORS blocked');
       })
     );
-    stubChrome((message, callback) => {
+    stubSendMessage(browser, (message, callback) => {
       expect(message).toEqual({ type: 'aura:probe-size', src: 'https://other.example.com/b.png' });
       callback({ ok: true, value: { bytes: 41_000 } });
     });
@@ -73,10 +87,10 @@ describe('queueSizeProbes', () => {
   });
 
   it('settles non-http(s) sources as unavailable without fetching', async () => {
-    const probe = await freshModule();
+    const { probe, browser } = await freshModule();
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    stubChrome(vi.fn());
+    stubSendMessage(browser, vi.fn());
 
     probe.queueSizeProbes(['blob:https://example.com/0f1e'], vi.fn());
     expect(probe.probeOutcome('blob:https://example.com/0f1e')).toBe('unavailable');
@@ -84,28 +98,28 @@ describe('queueSizeProbes', () => {
   });
 
   it('gives up as unavailable when both attempts fail', async () => {
-    const probe = await freshModule();
+    const { probe, browser } = await freshModule();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
         throw new TypeError('CORS blocked');
       })
     );
-    stubChrome((_message, callback) => callback({ ok: false, error: 'network', message: 'nope' }));
+    stubSendMessage(browser, (_message, callback) => callback({ ok: false, error: 'network', message: 'nope' }));
 
     probe.queueSizeProbes(['https://other.example.com/c.png'], vi.fn());
     expect(await settled(probe, 'https://other.example.com/c.png')).toBe('unavailable');
   });
 
   it('stops background downloads at the per-page cap', async () => {
-    const probe = await freshModule();
+    const { probe, browser } = await freshModule();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
         throw new TypeError('CORS blocked');
       })
     );
-    const sendMessage = stubChrome((_message, callback) => callback({ ok: true, value: { bytes: 5 } }));
+    const sendMessage = stubSendMessage(browser, (_message, callback) => callback({ ok: true, value: { bytes: 5 } }));
 
     const urls = Array.from({ length: probe.MAX_BACKGROUND_PROBES + 2 }, (_, i) => `https://x.example.com/${i}.png`);
     probe.queueSizeProbes(urls, vi.fn());

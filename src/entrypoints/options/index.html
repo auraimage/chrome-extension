@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AuraImage X-Ray options</title>
+    <!-- Open the options page in a full tab, matching the pre-WXT options_page behavior. -->
+    <meta name="manifest.open_in_tab" content="true" />
     <style>
       :root {
         color-scheme: light dark;
@@ -117,6 +119,6 @@
       <p id="status" class="status"></p>
       <p id="usage" class="usage"></p>
     </div>
-    <script src="options.js"></script>
+    <script type="module" src="./main.ts"></script>
   </body>
 </html>

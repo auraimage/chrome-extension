@@ -10,6 +10,7 @@
 // same URL twice. Probes go only to hosts the page already loaded images from;
 // nothing here talks to the AuraImage edge.
 import type { DemoResult, SizeProbeRequest } from '../shared/types';
+import { browser } from 'wxt/browser';
 
 export const PROBE_TIMEOUT_MS = 8_000;
 /** Hard ceiling on background (real-network) probe downloads per page. */
@@ -85,8 +86,8 @@ async function fetchSizeInPage(url: string): Promise<number | null> {
 function fetchSizeViaBackground(url: string): Promise<number | null> {
   const message: SizeProbeRequest = { type: 'aura:probe-size', src: url };
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response?: DemoResult<{ bytes: number }>) => {
-      const error = chrome.runtime.lastError;
+    browser.runtime.sendMessage(message, (response?: DemoResult<{ bytes: number }>) => {
+      const error = browser.runtime.lastError;
       if (error || !response?.ok) {
         resolve(null);
         return;

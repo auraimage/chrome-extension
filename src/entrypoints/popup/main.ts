@@ -2,15 +2,16 @@
 // Findings card, and wires the copy-markdown / download-png / mute / badge
 // switch actions. Restricted pages (chrome://, the Web Store) where the content
 // script cannot run degrade to a "can't read this page" message.
-import { type AuraImageRef, parseAuraImageUrl } from '../shared/aura-url';
-import { getBadgesEnabled, setBadgesEnabled } from '../shared/badge-switch';
-import { GATE_CTA_URL, isExportGated, recordExport } from '../shared/gate';
-import { isHostMuted, setHostMuted } from '../shared/mute';
-import { buildAgentPrompt, buildPictureSnippet } from '../shared/snippet';
-import type { FindingsResponse, PageFindings } from '../shared/types';
-import { CARD_CANVAS, colorFor, fontFor, layoutCard } from './card-layout';
-import { buildFindingsMarkdown } from './findings-markdown';
-import { type FindingsCardModel, buildFindingsCardModel } from './findings-model';
+import { CARD_CANVAS, colorFor, fontFor, layoutCard } from '@/popup/card-layout';
+import { buildFindingsMarkdown } from '@/popup/findings-markdown';
+import { type FindingsCardModel, buildFindingsCardModel } from '@/popup/findings-model';
+import { type AuraImageRef, parseAuraImageUrl } from '@/shared/aura-url';
+import { getBadgesEnabled, setBadgesEnabled } from '@/shared/badge-switch';
+import { GATE_CTA_URL, isExportGated, recordExport } from '@/shared/gate';
+import { isHostMuted, setHostMuted } from '@/shared/mute';
+import { buildAgentPrompt, buildPictureSnippet } from '@/shared/snippet';
+import type { FindingsResponse, PageFindings } from '@/shared/types';
+import { browser } from 'wxt/browser';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -40,8 +41,8 @@ function hostnameOf(url?: string): string | null {
 /** Promise wrapper around tabs.sendMessage that rejects on a missing receiver. */
 function requestFindings(tabId: number): Promise<FindingsResponse> {
   return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, { type: 'aura:get-findings' }, (response?: FindingsResponse) => {
-      const error = chrome.runtime.lastError;
+    browser.tabs.sendMessage(tabId, { type: 'aura:get-findings' }, (response?: FindingsResponse) => {
+      const error = browser.runtime.lastError;
       if (error) reject(new Error(error.message));
       else if (!response) reject(new Error('no findings'));
       else resolve(response);
@@ -268,7 +269,7 @@ async function main(): Promise<void> {
   const app = document.getElementById('app');
   if (!app) return;
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || isRestrictedUrl(tab.url)) {
     renderRestricted(app);
     return;

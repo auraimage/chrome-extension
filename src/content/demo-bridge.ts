@@ -1,13 +1,14 @@
 // Thin promise wrappers around the background edge proxy, plus the byte helpers
 // the optimize panel needs. Content scripts can't fetch the edge directly (page
-// CORS/CSP), so every call is a chrome.runtime round-trip; the background does
+// CORS/CSP), so every call is a browser.runtime round-trip; the background does
 // the fetch and returns JSON stats, alt text, or base64 image bytes.
 import type { DemoBytesPayload, DemoResult, DemoStats, DemoTransformOpts } from '../shared/types';
+import { browser } from 'wxt/browser';
 
 function send<T>(message: unknown): Promise<DemoResult<T>> {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(message, (response?: DemoResult<T>) => {
-      const error = chrome.runtime.lastError;
+    browser.runtime.sendMessage(message, (response?: DemoResult<T>) => {
+      const error = browser.runtime.lastError;
       if (error || !response) {
         resolve({ ok: false, error: 'network', message: error?.message ?? 'no response from background' });
         return;

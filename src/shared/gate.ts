@@ -2,12 +2,13 @@
 // (download avif/webp, copy <picture> snippet) are free; from the fourth on the
 // preview still renders but the export control is replaced by a link to create a
 // free project. The pure state machine below is unit-tested; the storage wrapper
-// around chrome.storage.sync is a thin shell over it.
+// around browser.storage.sync is a thin shell over it.
+import { browser } from 'wxt/browser';
 
 /** Free exports allowed before the gate engages. */
 export const FREE_EXPORT_ALLOWANCE = 3;
 
-/** chrome.storage.sync key holding the lifetime export count. */
+/** browser.storage.sync key holding the lifetime export count. */
 export const EXPORTS_USED_KEY = 'exportsUsed';
 
 /** Where the "create a free project" CTAs point, tagged so we can see the source. */
@@ -31,7 +32,7 @@ export function nextUsed(used: number): number {
 
 /** Read the lifetime export count, treating anything malformed as zero. */
 export async function getExportsUsed(): Promise<number> {
-  const stored = await chrome.storage.sync.get(EXPORTS_USED_KEY);
+  const stored = await browser.storage.sync.get(EXPORTS_USED_KEY);
   const value = stored[EXPORTS_USED_KEY];
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
@@ -50,6 +51,6 @@ export async function isExportGated(): Promise<boolean> {
  */
 export async function recordExport(): Promise<number> {
   const used = nextUsed(await getExportsUsed());
-  await chrome.storage.sync.set({ [EXPORTS_USED_KEY]: used });
+  await browser.storage.sync.set({ [EXPORTS_USED_KEY]: used });
   return used;
 }

@@ -4,6 +4,8 @@
 // come back base64-encoded because ArrayBuffers don't survive sendMessage. It
 // also owns the image context menu, the offline compress fetch/encode, and the
 // Size probe fallback (ADR 0026), for the same host-permission reason.
+import { type EncodedImage, encodeOffline } from '@/background/offline-encode';
+import { probeSize } from '@/background/probe-size';
 import {
   DemoExhausted,
   EdgeUnavailable,
@@ -12,7 +14,7 @@ import {
   demoAlt,
   demoTransformBytes,
   demoTransformStats
-} from '../shared/api';
+} from '@/shared/api';
 import {
   MENU_DOWNLOAD_OFFLINE_ID,
   MENU_OPTIMIZE_ID,
@@ -20,8 +22,8 @@ import {
   OFFLINE_MENU_TITLE,
   deriveFileName,
   menuActionFor
-} from '../shared/context-menu';
-import { GATE_CTA_URL, isExportGated, recordExport } from '../shared/gate';
+} from '@/shared/context-menu';
+import { GATE_CTA_URL, isExportGated, recordExport } from '@/shared/gate';
 import type {
   DemoAltRequest,
   DemoBytesRequest,
@@ -29,45 +31,15 @@ import type {
   DemoResult,
   DemoStatsRequest,
   SizeProbeRequest
-} from '../shared/types';
-import { type EncodedImage, encodeOffline } from './offline-encode';
-import { probeSize } from './probe-size';
-
-chrome.runtime.onInstalled.addListener(() => {
-  // Rebuild from scratch so a reinstall/update never hits a duplicate-id error.
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: MENU_PARENT_ID, title: 'AuraImage', contexts: ['image'] });
-    chrome.contextMenus.create({
-      id: MENU_OPTIMIZE_ID,
-      parentId: MENU_PARENT_ID,
-      title: 'Optimize this image',
-      contexts: ['image']
-    });
-    chrome.contextMenus.create({
-      id: MENU_DOWNLOAD_OFFLINE_ID,
-      parentId: MENU_PARENT_ID,
-      title: OFFLINE_MENU_TITLE,
-      contexts: ['image']
-    });
-  });
-});
-
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const action = menuActionFor(info.menuItemId);
-  const tabId = tab?.id;
-  if (!action || tabId === undefined || !info.srcUrl) return;
-  if (action === 'optimize') {
-    sendToTab(tabId, { type: 'aura:open-optimize', src: info.srcUrl });
-    return;
-  }
-  void handleOfflineDownload(tabId, info.srcUrl);
-});
+} from '@/shared/types';
+import { browser } from 'wxt/browser';
+import { defineBackground } from 'wxt/utils/define-background';
 
 /** Fire-and-forget message to a tab; swallow "no receiving end" on restricted
  *  pages (reading lastError suppresses the unchecked-error warning). */
 function sendToTab(tabId: number, message: unknown): void {
-  chrome.tabs.sendMessage(tabId, message, () => {
-    void chrome.runtime.lastError;
+  browser.tabs.sendMessage(tabId, message, () => {
+    void browser.runtime.lastError;
   });
 }
 
@@ -98,13 +70,13 @@ async function handleOfflineDownload(tabId: number, srcUrl: string): Promise<voi
   }
 
   const fileName = deriveFileName(srcUrl, encoded.ext);
-  chrome.tabs.sendMessage(
+  browser.tabs.sendMessage(
     tabId,
     { type: 'aura:offline-download', base64: encoded.base64, contentType: encoded.contentType, fileName },
     () => {
       // A restricted page has no content script (lastError): skip silently so the
       // export is never counted against the gate when nothing was delivered.
-      if (chrome.runtime.lastError) return;
+      if (browser.runtime.lastError) return;
       void recordExport();
     }
   );
@@ -134,25 +106,57 @@ function reply<T>(work: Promise<T>, sendResponse: (result: DemoResult<T>) => voi
   );
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (isType<DemoStatsRequest>(message, 'aura:demo-stats')) {
-    reply(demoTransformStats(message.src, message.opts), sendResponse);
-    return true; // keep the channel open for the async reply
-  }
-  if (isType<DemoBytesRequest>(message, 'aura:demo-bytes')) {
-    reply(demoTransformBytes(message.src, message.opts), sendResponse);
-    return true;
-  }
-  if (isType<DemoAltRequest>(message, 'aura:demo-alt')) {
-    reply(
-      demoAlt(message.src).then((alt) => ({ alt })),
-      sendResponse
-    );
-    return true;
-  }
-  if (isType<SizeProbeRequest>(message, 'aura:probe-size')) {
-    reply(probeSize(message.src), sendResponse);
-    return true;
-  }
-  return false;
+export default defineBackground(() => {
+  browser.runtime.onInstalled.addListener(() => {
+    // Rebuild from scratch so a reinstall/update never hits a duplicate-id error.
+    browser.contextMenus.removeAll(() => {
+      browser.contextMenus.create({ id: MENU_PARENT_ID, title: 'AuraImage', contexts: ['image'] });
+      browser.contextMenus.create({
+        id: MENU_OPTIMIZE_ID,
+        parentId: MENU_PARENT_ID,
+        title: 'Optimize this image',
+        contexts: ['image']
+      });
+      browser.contextMenus.create({
+        id: MENU_DOWNLOAD_OFFLINE_ID,
+        parentId: MENU_PARENT_ID,
+        title: OFFLINE_MENU_TITLE,
+        contexts: ['image']
+      });
+    });
+  });
+
+  browser.contextMenus.onClicked.addListener((info, tab) => {
+    const action = menuActionFor(info.menuItemId);
+    const tabId = tab?.id;
+    if (!action || tabId === undefined || !info.srcUrl) return;
+    if (action === 'optimize') {
+      sendToTab(tabId, { type: 'aura:open-optimize', src: info.srcUrl });
+      return;
+    }
+    void handleOfflineDownload(tabId, info.srcUrl);
+  });
+
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (isType<DemoStatsRequest>(message, 'aura:demo-stats')) {
+      reply(demoTransformStats(message.src, message.opts), sendResponse);
+      return true; // keep the channel open for the async reply
+    }
+    if (isType<DemoBytesRequest>(message, 'aura:demo-bytes')) {
+      reply(demoTransformBytes(message.src, message.opts), sendResponse);
+      return true;
+    }
+    if (isType<DemoAltRequest>(message, 'aura:demo-alt')) {
+      reply(
+        demoAlt(message.src).then((alt) => ({ alt })),
+        sendResponse
+      );
+      return true;
+    }
+    if (isType<SizeProbeRequest>(message, 'aura:probe-size')) {
+      reply(probeSize(message.src), sendResponse);
+      return true;
+    }
+    return false;
+  });
 });

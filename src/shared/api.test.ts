@@ -9,15 +9,16 @@ import {
   demoTransformStats
 } from './api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 
-// api.ts reads the edge base from chrome.storage.sync via getEdgeBase; stub the
-// minimal chrome surface so the default production base is used.
-const chromeStub = {
-  storage: { sync: { get: vi.fn().mockResolvedValue({}) } }
-};
+// api.ts reads the edge base from browser.storage.sync via getEdgeBase. Pin it to
+// the production base through the fake-browser storage override so the URL-grammar
+// assertions stay deterministic regardless of the dev WXT_EDGE_BASE env default.
+const EDGE_BASE = 'https://cdn.auraimage.ai';
 
-beforeEach(() => {
-  (globalThis as unknown as { chrome: unknown }).chrome = chromeStub;
+beforeEach(async () => {
+  fakeBrowser.reset();
+  await fakeBrowser.storage.sync.set({ edgeBase: EDGE_BASE });
 });
 
 afterEach(() => {
