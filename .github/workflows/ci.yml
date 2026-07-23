@@ -40,5 +40,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: auraimage-x-ray
+          # WXT emits the zip under .output/ (a dot-dir); upload-artifact@v4
+          # treats dotfiles as hidden and skips them unless this is set.
+          include-hidden-files: true
           path: .output/*-chrome.zip
           if-no-files-found: error
