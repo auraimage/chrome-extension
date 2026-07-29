@@ -60,6 +60,17 @@ describe('buildSwitchModel ariaLabel', () => {
     expect(buildSwitchModel(baseState({ badgesEnabled: false })).ariaLabel).toBe('x-ray, badges hidden. open menu');
   });
 
+  // Asserted from the model's own fields rather than the literals above, because
+  // the literals cannot catch this: the name this replaced ("aura x-ray, 12
+  // images. open menu") read perfectly well and still broke the rule. Any reword
+  // that keeps the strings' spirit but drops the visible text fails here.
+  it('contains its own visible label in both states, so voice control can act on the words a user sees (WCAG 2.5.3)', () => {
+    for (const badgesEnabled of [true, false]) {
+      const model = buildSwitchModel(baseState({ badgesEnabled }));
+      expect(model.ariaLabel).toContain(model.label);
+    }
+  });
+
   it('never contains an em dash', () => {
     expect(buildSwitchModel(baseState()).ariaLabel).not.toContain('—');
   });
