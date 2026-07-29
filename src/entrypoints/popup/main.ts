@@ -216,20 +216,23 @@ function renderCard(
   const pngButton = el('button', { type: 'button', textContent: 'download png' });
   pngButton.addEventListener('click', () => downloadPng(model, pngButton));
 
-  const muteButton = el('button', { type: 'button', textContent: 'mute this site' });
+  // Same wording as the on-page switcher menu: "mute" stays the domain term,
+  // "hide" is the UI verb everywhere a user reads it (CONTEXT.md "Site mute").
+  const muteLabel = (muted: boolean): string => (muted ? `show on ${hostname}` : `hide on ${hostname}`);
+  const muteButton = el('button', { type: 'button', textContent: muteLabel(false) });
   void isHostMuted(hostname).then((muted) => {
-    muteButton.textContent = muted ? 'unmute this site' : 'mute this site';
+    muteButton.textContent = muteLabel(muted);
   });
   muteButton.addEventListener('click', () => {
     void (async () => {
       const nextMuted = !(await isHostMuted(hostname));
       await setHostMuted(hostname, nextMuted);
-      muteButton.textContent = nextMuted ? 'unmute this site' : 'mute this site';
+      muteButton.textContent = muteLabel(nextMuted);
     })();
   });
 
   // The Badge switch: same persisted state as the on-page switcher, all sites.
-  const badgesLabel = (enabled: boolean): string => (enabled ? 'hide badges everywhere' : 'show badges everywhere');
+  const badgesLabel = (enabled: boolean): string => (enabled ? 'hide on every site' : 'show on every site');
   const badgesButton = el('button', { type: 'button', textContent: badgesLabel(true) });
   void getBadgesEnabled().then((enabled) => {
     badgesButton.textContent = badgesLabel(enabled);
