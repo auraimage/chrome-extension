@@ -5,17 +5,17 @@
 import type { DemoBytesPayload, DemoResult, DemoStats, DemoTransformOpts } from '../shared/types';
 import { browser } from 'wxt/browser';
 
-function send<T>(message: unknown): Promise<DemoResult<T>> {
-  return new Promise((resolve) => {
-    browser.runtime.sendMessage(message, (response?: DemoResult<T>) => {
-      const error = browser.runtime.lastError;
-      if (error || !response) {
-        resolve({ ok: false, error: 'network', message: error?.message ?? 'no response from background' });
-        return;
-      }
-      resolve(response);
-    });
-  });
+async function send<T>(message: unknown): Promise<DemoResult<T>> {
+  // Promise form (not callback): the native `browser` global is promise-based on
+  // Firefox and ignores a trailing callback, which would hang the round-trip.
+  try {
+    const response = (await browser.runtime.sendMessage(message)) as DemoResult<T> | undefined;
+    if (!response) return { ok: false, error: 'network', message: 'no response from background' };
+    return response;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'no response from background';
+    return { ok: false, error: 'network', message: reason };
+  }
 }
 
 export function requestStats(src: string, opts?: DemoTransformOpts): Promise<DemoResult<DemoStats>> {

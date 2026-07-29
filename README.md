@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml)
 
-A zero-auth Chrome extension that audits and optimizes the images on any page:
+A zero-auth browser extension that audits and optimizes the images on any page:
 real AVIF/WebP on click, alt text, and page-speed findings. Measured, not
 scored.
 
 **Landing page:** https://auraimage.ai/extension
 
-**Chrome Web Store:** coming soon
+**Chrome Web Store:** coming soon · **Firefox Add-ons:** coming soon · **Edge Add-ons:** coming soon
 
 AuraImage X-Ray is a zero-auth image auditor for the browser. It runs on any
 website, for anyone, with no account. It badges every image on the current page
@@ -38,18 +38,27 @@ Then in Chrome:
 Chrome shows the "read and change all your data on all websites" warning. That
 is the cost of ambient badges on every page; see the open-source note below.
 
+**Edge** loads the same Chrome build: `.output/chrome-mv3/` via
+`edge://extensions`. **Firefox** uses an MV2 build (ADR 0029) — run
+`pnpm build:firefox` and load `.output/firefox-mv2/` via `about:debugging` →
+**This Firefox** → **Load Temporary Add-on**, or just `pnpm dev:firefox`, which
+launches Firefox with the extension loaded and hot-reloads on change.
+
 ## Development
 
 Built with [WXT](https://wxt.dev).
 
 ```bash
-pnpm dev         # WXT dev server: opens Chrome with the extension, HMR + auto-reload
-pnpm build       # one-shot production build into .output/chrome-mv3/
-pnpm zip         # package .output/auraimage-x-ray-<version>-chrome.zip for the store
-pnpm test        # vitest on WxtVitest + fake-browser
-pnpm test:e2e    # Playwright: load the built extension in real Chrome
-pnpm type-check  # wxt prepare && tsc --noEmit
-pnpm lint        # eslint
+pnpm dev           # WXT dev server: opens Chrome with the extension, HMR + auto-reload
+pnpm dev:firefox   # same, in Firefox (loads .output/firefox-mv2 via web-ext)
+pnpm build         # one-shot production build into .output/chrome-mv3/
+pnpm build:firefox # Firefox MV2 build into .output/firefox-mv2/
+pnpm zip           # package .output/auraimage-x-ray-<version>-chrome.zip for the store
+pnpm zip:firefox   # package the Firefox zip plus the AMO sources zip
+pnpm test          # vitest on WxtVitest + fake-browser
+pnpm test:e2e      # Playwright: load the built extension in real Chrome
+pnpm type-check    # wxt prepare && tsc --noEmit
+pnpm lint          # eslint
 ```
 
 `pnpm dev` runs the WXT dev server, which launches its own Chrome with the
@@ -57,7 +66,14 @@ extension loaded and hot-reloads on change — no manual `chrome://extensions`
 reload. The four entrypoints live under `src/entrypoints` (`background.ts` and
 `content.ts` as `defineBackground`/`defineContentScript`, `popup/` and
 `options/` as HTML pages); everything else under `src/` is plain library code.
-WXT generates `manifest.json` from `wxt.config.ts`.
+WXT generates `manifest.json` from `wxt.config.ts`. It targets Chrome/Edge as
+MV3 and Firefox as MV2 from one source, using the `browser` global and
+promise-based messaging so a single code path runs on all three (ADR 0029). CI
+builds the Firefox target and asserts its MV2 manifest; the messaging
+round-trips are unit-tested against a promise-returning mock (Firefox's native
+`browser` is promise-based, unlike Chrome's callbacks). Playwright can't load
+extensions in Firefox, so the interactive Firefox smoke via `pnpm dev:firefox`
+is a one-time manual check.
 
 To point a dev build at a local or staging edge, set `WXT_EDGE_BASE` in
 `.env.development` (default `https://cdn.auraimage.localhost`); `getEdgeBase`
@@ -86,20 +102,29 @@ The `v*` tag triggers `.github/workflows/release.yml`, which:
 
 1. Fails fast unless the tag equals `v{package.json version}`, so a mistyped tag
    or a forgotten version bump stops the run before anything ships.
-2. Runs the full CI gauntlet (lint, type-check, test, build, zip, e2e).
+2. Runs the full CI gauntlet (lint, type-check, test, build, zip Chrome +
+   Firefox, verify the Firefox MV2 manifest, e2e).
 3. Creates a GitHub Release named after the tag with generated notes and the
-   `auraimage-x-ray-<version>-chrome.zip` attached.
-4. Submits that zip to the Chrome Web Store via `wxt submit`, but only when the
-   store secrets are configured. Without them the submit step is skipped and the
-   run logs a notice; the GitHub Release is still created either way.
+   Chrome and Firefox zips attached.
+4. Submits to the Chrome Web Store, Firefox Add-ons, and Edge Add-ons via
+   `wxt submit` — each store independently, and only when its own secrets are
+   configured. A store with no secrets is skipped with a run notice; the GitHub
+   Release is still created either way. Edge reuses the Chrome zip; Firefox
+   submits its own zip plus the AMO sources zip.
 
-Chrome Web Store submission needs four repository secrets (read by `wxt submit`):
+Store submission secrets are read by `wxt submit` — run `wxt submit init` to
+scaffold `.env.submit` with the exact set. Each store gates on its identity var
+(`CHROME_EXTENSION_ID` / `FIREFOX_EXTENSION_ID` / `EDGE_PRODUCT_ID`):
 
-- `CHROME_EXTENSION_ID`: the item ID of the listing (the id in its store URL).
-- `CHROME_CLIENT_ID` and `CHROME_CLIENT_SECRET`: a Google Cloud OAuth 2.0 client
-  (Desktop app type) with the Chrome Web Store API enabled.
-- `CHROME_REFRESH_TOKEN`: a refresh token minted once for that client against
-  the `https://www.googleapis.com/auth/chromewebstore` scope.
+- **Chrome Web Store** — `CHROME_EXTENSION_ID` (the item ID from its store URL),
+  `CHROME_CLIENT_ID` + `CHROME_CLIENT_SECRET` (a Google Cloud OAuth 2.0 client,
+  Desktop type, with the Chrome Web Store API enabled), and `CHROME_REFRESH_TOKEN`
+  (minted once for the `https://www.googleapis.com/auth/chromewebstore` scope).
+- **Firefox Add-ons (AMO)** — `FIREFOX_EXTENSION_ID` (matches
+  `browser_specific_settings.gecko.id`, `x-ray@auraimage.ai`), `FIREFOX_JWT_ISSUER`
+  + `FIREFOX_JWT_SECRET` (an AMO API credential).
+- **Edge Add-ons** — `EDGE_PRODUCT_ID`, `EDGE_CLIENT_ID`, `EDGE_API_KEY` (from
+  Partner Center).
 
 If the store submit fails after the GitHub Release is already created (an expired
 refresh token, a Google-side outage), do not retag. Re-run the release from the

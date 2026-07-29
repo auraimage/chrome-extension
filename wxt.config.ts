@@ -12,9 +12,18 @@ export default defineConfig({
   // On-brand zip name (e.g. auraimage-x-ray-0.0.3-chrome.zip) rather than the
   // mangled scoped package name; the release workflow globs *-chrome.zip.
   zip: {
-    name: 'auraimage-x-ray'
+    name: 'auraimage-x-ray',
+    // The Firefox sources zip (AMO rebuilds from source) needs only build
+    // inputs. demo/ (a demo page + multi-MB sample images) and store-assets/
+    // (listing screenshots) are dev/marketing assets, not build inputs; WXT
+    // already drops dotfiles, node_modules, and tests. (ADR 0029)
+    excludeSources: ['demo/**', 'store-assets/**']
   },
-  manifest: {
+  // Function form so the Firefox build can carry its add-on identity. WXT
+  // targets MV2 for Firefox (ADR 0029) and auto-converts this MV3 block:
+  // host_permissions folds into permissions (granted at install, so badges
+  // still auto-appear), action -> browser_action, service worker -> event page.
+  manifest: ({ browser }) => ({
     name: 'Image Optimizer & Audit: AVIF, WebP, Alt Text | AuraImage X-Ray',
     description:
       'Image optimizer and audit: AVIF/WebP on click, alt text, Core Web Vitals. Zero auth, open source, measured, not scored.',
@@ -24,6 +33,11 @@ export default defineConfig({
       16: 'icons/16.png',
       48: 'icons/48.png',
       128: 'icons/128.png'
-    }
-  }
+    },
+    // AMO bakes this id into the listing on first publish, so it is permanent.
+    // Firefox-only; Chrome/Edge manifests never carry browser_specific_settings.
+    ...(browser === 'firefox' && {
+      browser_specific_settings: { gecko: { id: 'x-ray@auraimage.ai' } }
+    })
+  })
 });

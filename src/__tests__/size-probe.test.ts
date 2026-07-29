@@ -17,17 +17,14 @@ async function freshModule(): Promise<{ probe: ProbeModule; browser: Browser }> 
   return { probe, browser: freshBrowser };
 }
 
-type SendMessage = (message: unknown, callback: (response?: unknown) => void) => void;
+type Reply = (message: unknown) => unknown;
 
-// size-probe.ts falls back to browser.runtime.sendMessage (callback style); spy on
-// the fresh instance so the test drives the background reply. fake-browser seeds
-// runtime.lastError with a truthy { message: '' }, but Chrome leaves it undefined
-// unless the call errored, so clear it before invoking the reply callback.
-function stubSendMessage(target: Browser, sendMessage: SendMessage): ReturnType<typeof vi.fn> {
-  const mock = vi.fn((message: unknown, callback: (response?: unknown) => void) => {
-    (target.runtime as { lastError?: unknown }).lastError = undefined;
-    sendMessage(message, callback);
-  });
+// size-probe.ts falls back to browser.runtime.sendMessage in promise form; spy on
+// the fresh instance so the test drives the background reply. The mock returns a
+// promise and ignores any callback — Firefox's native `browser` behaves this way,
+// so a regression back to callback style would hang here (waitFor times out).
+function stubSendMessage(target: Browser, reply: Reply): ReturnType<typeof vi.fn> {
+  const mock = vi.fn(async (message: unknown) => reply(message));
   vi.spyOn(target.runtime, 'sendMessage').mockImplementation(mock as never);
   return mock;
 }
@@ -77,9 +74,9 @@ describe('queueSizeProbes', () => {
         throw new TypeError('CORS blocked');
       })
     );
-    stubSendMessage(browser, (message, callback) => {
+    stubSendMessage(browser, (message) => {
       expect(message).toEqual({ type: 'aura:probe-size', src: 'https://other.example.com/b.png' });
-      callback({ ok: true, value: { bytes: 41_000 } });
+      return { ok: true, value: { bytes: 41_000 } };
     });
 
     probe.queueSizeProbes(['https://other.example.com/b.png'], vi.fn());
@@ -105,7 +102,7 @@ describe('queueSizeProbes', () => {
         throw new TypeError('CORS blocked');
       })
     );
-    stubSendMessage(browser, (_message, callback) => callback({ ok: false, error: 'network', message: 'nope' }));
+    stubSendMessage(browser, () => ({ ok: false, error: 'network', message: 'nope' }));
 
     probe.queueSizeProbes(['https://other.example.com/c.png'], vi.fn());
     expect(await settled(probe, 'https://other.example.com/c.png')).toBe('unavailable');
@@ -119,7 +116,7 @@ describe('queueSizeProbes', () => {
         throw new TypeError('CORS blocked');
       })
     );
-    const sendMessage = stubSendMessage(browser, (_message, callback) => callback({ ok: true, value: { bytes: 5 } }));
+    const sendMessage = stubSendMessage(browser, () => ({ ok: true, value: { bytes: 5 } }));
 
     const urls = Array.from({ length: probe.MAX_BACKGROUND_PROBES + 2 }, (_, i) => `https://x.example.com/${i}.png`);
     probe.queueSizeProbes(urls, vi.fn());

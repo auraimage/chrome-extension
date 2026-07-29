@@ -83,18 +83,17 @@ async function fetchSizeInPage(url: string): Promise<number | null> {
 }
 
 /** Background fallback: one message per probe; any error resolves to null. */
-function fetchSizeViaBackground(url: string): Promise<number | null> {
+async function fetchSizeViaBackground(url: string): Promise<number | null> {
   const message: SizeProbeRequest = { type: 'aura:probe-size', src: url };
-  return new Promise((resolve) => {
-    browser.runtime.sendMessage(message, (response?: DemoResult<{ bytes: number }>) => {
-      const error = browser.runtime.lastError;
-      if (error || !response?.ok) {
-        resolve(null);
-        return;
-      }
-      resolve(response.value.bytes > 0 ? response.value.bytes : null);
-    });
-  });
+  // Promise form (not callback): Firefox's native `browser` is promise-based and
+  // would drop a trailing callback, leaving the probe hung instead of settling.
+  try {
+    const response = (await browser.runtime.sendMessage(message)) as DemoResult<{ bytes: number }> | undefined;
+    if (!response?.ok) return null;
+    return response.value.bytes > 0 ? response.value.bytes : null;
+  } catch {
+    return null;
+  }
 }
 
 let backgroundActive = 0;

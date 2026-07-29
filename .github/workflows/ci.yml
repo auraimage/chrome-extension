@@ -30,6 +30,27 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm zip
+      # Build + zip the Firefox target too, so a change that breaks the Firefox
+      # build (or the MV3->MV2 conversion) fails CI, not a release. Edge reuses
+      # the Chrome zip. (ADR 0029)
+      - run: pnpm zip:firefox
+
+      # WXT owns MV3->MV2 conversion; assert it kept the permissions and identity
+      # that make the extension work on Firefox. A dropped permission is a
+      # user-facing regression (re-prompts, dead features). `<all_urls>` lives in
+      # `permissions` on MV2, not `host_permissions`.
+      - name: Verify Firefox MV2 manifest integrity
+        run: |
+          set -euo pipefail
+          M=.output/firefox-mv2/manifest.json
+          fail() { echo "::error::Firefox MV2 manifest check failed: $1"; exit 1; }
+          [ "$(jq -r '.manifest_version' "$M")" = "2" ] || fail "manifest_version is not 2"
+          for p in contextMenus storage clipboardWrite '<all_urls>'; do
+            jq -e --arg p "$p" '.permissions | index($p)' "$M" >/dev/null || fail "permissions missing $p"
+          done
+          jq -e '.browser_action' "$M" >/dev/null || fail "browser_action missing"
+          [ "$(jq -r '.browser_specific_settings.gecko.id' "$M")" = "x-ray@auraimage.ai" ] || fail "gecko id missing or wrong"
+          echo "Firefox MV2 manifest OK: $(jq -c '.permissions' "$M"), gecko $(jq -r '.browser_specific_settings.gecko.id' "$M")"
 
       # WXT generates the manifest and owns bundling, so the old dist-integrity
       # check is gone; the e2e loads the built extension in real Chrome instead.
@@ -40,8 +61,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: auraimage-x-ray
-          # WXT emits the zip under .output/ (a dot-dir); upload-artifact@v4
+          # WXT emits the zips under .output/ (a dot-dir); upload-artifact@v4
           # treats dotfiles as hidden and skips them unless this is set.
           include-hidden-files: true
-          path: .output/*-chrome.zip
+          path: |
+            .output/*-chrome.zip
+            .output/*-firefox.zip
           if-no-files-found: error

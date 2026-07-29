@@ -36,11 +36,11 @@ import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
 
 /** Fire-and-forget message to a tab; swallow "no receiving end" on restricted
- *  pages (reading lastError suppresses the unchecked-error warning). */
+ *  pages (the send rejects when there is no content script to receive). */
 function sendToTab(tabId: number, message: unknown): void {
-  browser.tabs.sendMessage(tabId, message, () => {
-    void browser.runtime.lastError;
-  });
+  // Promise form (Firefox's `browser` is promise-based); the .catch swallows the
+  // "no receiving end" rejection on restricted pages with no content script.
+  void browser.tabs.sendMessage(tabId, message).catch(() => {});
 }
 
 /**
@@ -70,16 +70,19 @@ async function handleOfflineDownload(tabId: number, srcUrl: string): Promise<voi
   }
 
   const fileName = deriveFileName(srcUrl, encoded.ext);
-  browser.tabs.sendMessage(
-    tabId,
-    { type: 'aura:offline-download', base64: encoded.base64, contentType: encoded.contentType, fileName },
-    () => {
-      // A restricted page has no content script (lastError): skip silently so the
-      // export is never counted against the gate when nothing was delivered.
-      if (browser.runtime.lastError) return;
-      void recordExport();
-    }
-  );
+  // A restricted page has no content script, so the send rejects: count the
+  // export against the gate only on delivery, never when nothing was received.
+  browser.tabs
+    .sendMessage(tabId, {
+      type: 'aura:offline-download',
+      base64: encoded.base64,
+      contentType: encoded.contentType,
+      fileName
+    })
+    .then(
+      () => void recordExport(),
+      () => {}
+    );
 }
 
 function isType<T extends { type: string }>(message: unknown, type: T['type']): message is T {
@@ -107,22 +110,24 @@ function reply<T>(work: Promise<T>, sendResponse: (result: DemoResult<T>) => voi
 }
 
 export default defineBackground(() => {
-  browser.runtime.onInstalled.addListener(() => {
+  browser.runtime.onInstalled.addListener(async () => {
     // Rebuild from scratch so a reinstall/update never hits a duplicate-id error.
-    browser.contextMenus.removeAll(() => {
-      browser.contextMenus.create({ id: MENU_PARENT_ID, title: 'AuraImage', contexts: ['image'] });
-      browser.contextMenus.create({
-        id: MENU_OPTIMIZE_ID,
-        parentId: MENU_PARENT_ID,
-        title: 'Optimize this image',
-        contexts: ['image']
-      });
-      browser.contextMenus.create({
-        id: MENU_DOWNLOAD_OFFLINE_ID,
-        parentId: MENU_PARENT_ID,
-        title: OFFLINE_MENU_TITLE,
-        contexts: ['image']
-      });
+    // `removeAll` is awaited (not callback-style): on Firefox the native
+    // `browser` is promise-based and would drop the callback, so the menu would
+    // never be (re)built and both right-click actions would silently vanish.
+    await browser.contextMenus.removeAll();
+    browser.contextMenus.create({ id: MENU_PARENT_ID, title: 'AuraImage', contexts: ['image'] });
+    browser.contextMenus.create({
+      id: MENU_OPTIMIZE_ID,
+      parentId: MENU_PARENT_ID,
+      title: 'Optimize this image',
+      contexts: ['image']
+    });
+    browser.contextMenus.create({
+      id: MENU_DOWNLOAD_OFFLINE_ID,
+      parentId: MENU_PARENT_ID,
+      title: OFFLINE_MENU_TITLE,
+      contexts: ['image']
     });
   });
 

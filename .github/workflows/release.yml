@@ -4,18 +4,30 @@
 # (or a manual re-run via workflow_dispatch pointed at a tag ref), enforces
 # that the tag equals `v{package.json .version}` (the single version source
 # under WXT), runs the full CI gauntlet, publishes a GitHub Release with the
-# `wxt zip` archive, then submits to the Chrome Web Store via `wxt submit`.
+# Chrome + Firefox `wxt zip` archives, then submits to the Chrome Web Store,
+# Firefox Add-ons, and Edge Add-ons via `wxt submit` (ADR 0029).
 #
-# Chrome Web Store submission is optional: the submit step is skipped (with a
-# run-summary notice) unless the required repo secrets are configured. The
-# GitHub Release is always created.
+# Every store submission is optional and independent: each submit step is
+# skipped (with a run-summary notice) unless its own secrets are configured, so
+# a store lights up the moment its listing + credentials exist. The GitHub
+# Release is always created.
 #
-# Required repository secrets for Chrome Web Store submission (read by
-# `wxt submit`, the publish-browser-extension package):
-#   CHROME_EXTENSION_ID    The extension's item ID (from its store URL / dashboard)
-#   CHROME_CLIENT_ID       Google Cloud OAuth 2.0 client ID (Chrome Web Store API)
-#   CHROME_CLIENT_SECRET   OAuth 2.0 client secret
-#   CHROME_REFRESH_TOKEN   OAuth refresh token minted for the chromewebstore scope
+# Required repository secrets, per store (read by `wxt submit`, the
+# publish-browser-extension package — confirm the exact set with `wxt submit
+# init`, which regenerates `.env.submit`):
+#   Chrome Web Store:
+#     CHROME_EXTENSION_ID    The item ID (from its store URL / dashboard)
+#     CHROME_CLIENT_ID       Google Cloud OAuth 2.0 client ID (Chrome Web Store API)
+#     CHROME_CLIENT_SECRET   OAuth 2.0 client secret
+#     CHROME_REFRESH_TOKEN   OAuth refresh token minted for the chromewebstore scope
+#   Firefox Add-ons (AMO):
+#     FIREFOX_EXTENSION_ID   The add-on id (matches browser_specific_settings.gecko.id)
+#     FIREFOX_JWT_ISSUER     AMO API key (issuer)
+#     FIREFOX_JWT_SECRET     AMO API secret
+#   Edge Add-ons:
+#     EDGE_PRODUCT_ID        The product ID from Partner Center
+#     EDGE_CLIENT_ID         Partner Center API client ID
+#     EDGE_API_KEY           Partner Center API key
 
 name: release
 
@@ -35,14 +47,21 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Map the Chrome Web Store secrets into job-level env so the submit step can
-    # gate on their presence: `secrets.*` is not usable in a step `if:`, but
-    # job-level `env.*` is.
+    # Map the store secrets into job-level env so each submit step can gate on
+    # its presence: `secrets.*` is not usable in a step `if:`, but job-level
+    # `env.*` is. Each store gates on its own identity var
+    # (CHROME_EXTENSION_ID / FIREFOX_EXTENSION_ID / EDGE_PRODUCT_ID).
     env:
       CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
       CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
       CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
       CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+      FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+      FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+      FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+      EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+      EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+      EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +97,9 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm zip
+      # Firefox build + zip (+ sources zip AMO rebuilds from). Edge reuses the
+      # Chrome zip, so it needs no separate build. (ADR 0029)
+      - run: pnpm zip:firefox
 
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
@@ -87,17 +109,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # Attach the Chrome and Firefox zips; the Firefox sources zip is an
+          # AMO-review artifact, not a user download, so it is not attached.
+          ASSETS=(.output/*-chrome.zip .output/*-firefox.zip)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "release $TAG already exists; re-uploading the zip"
-            gh release upload "$TAG" .output/*-chrome.zip --clobber
+            echo "release $TAG already exists; re-uploading the zips"
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" .output/*-chrome.zip --title "$TAG" --generate-notes
+            gh release create "$TAG" "${ASSETS[@]}" --title "$TAG" --generate-notes
           fi
 
       - name: Submit to Chrome Web Store
         if: env.CHROME_EXTENSION_ID != ''
         run: pnpm wxt submit --chrome-zip .output/*-chrome.zip
 
-      - name: Note Chrome Web Store submission skipped
-        if: env.CHROME_EXTENSION_ID == ''
-        run: echo "::notice::Chrome Web Store secrets not configured; skipping store submission (GitHub Release still created)"
+      - name: Submit to Firefox Add-ons
+        if: env.FIREFOX_EXTENSION_ID != ''
+        run: pnpm wxt submit --firefox-zip .output/*-firefox.zip --firefox-sources-zip .output/*-sources.zip
+
+      - name: Submit to Edge Add-ons
+        if: env.EDGE_PRODUCT_ID != ''
+        run: pnpm wxt submit --edge-zip .output/*-chrome.zip
+
+      - name: Note skipped store submissions
+        if: env.CHROME_EXTENSION_ID == '' || env.FIREFOX_EXTENSION_ID == '' || env.EDGE_PRODUCT_ID == ''
+        run: |
+          if [ -z "$CHROME_EXTENSION_ID" ]; then echo "::notice::Chrome Web Store secrets not configured; skipped (GitHub Release still created)"; fi
+          if [ -z "$FIREFOX_EXTENSION_ID" ]; then echo "::notice::Firefox Add-ons secrets not configured; skipped (GitHub Release still created)"; fi
+          if [ -z "$EDGE_PRODUCT_ID" ]; then echo "::notice::Edge Add-ons secrets not configured; skipped (GitHub Release still created)"; fi

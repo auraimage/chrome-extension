@@ -38,16 +38,13 @@ function hostnameOf(url?: string): string | null {
   }
 }
 
-/** Promise wrapper around tabs.sendMessage that rejects on a missing receiver. */
-function requestFindings(tabId: number): Promise<FindingsResponse> {
-  return new Promise((resolve, reject) => {
-    browser.tabs.sendMessage(tabId, { type: 'aura:get-findings' }, (response?: FindingsResponse) => {
-      const error = browser.runtime.lastError;
-      if (error) reject(new Error(error.message));
-      else if (!response) reject(new Error('no findings'));
-      else resolve(response);
-    });
-  });
+/** tabs.sendMessage in promise form; rejects on a missing receiver (Firefox's
+ *  native `browser` is promise-based and would drop a trailing callback). */
+async function requestFindings(tabId: number): Promise<FindingsResponse> {
+  const response = (await browser.tabs.sendMessage(tabId, { type: 'aura:get-findings' })) as
+    FindingsResponse | undefined;
+  if (!response) throw new Error('no findings');
+  return response;
 }
 
 function renderRestricted(app: HTMLElement): void {
