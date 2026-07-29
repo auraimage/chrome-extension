@@ -10,7 +10,7 @@ import { type AnalyzedImage, createOverlay } from '@/content/overlay';
 import { probeOutcome, queueSizeProbes } from '@/content/size-probe';
 import { aggregate, analyzeImage } from '@/shared/analyze';
 import { BADGES_ENABLED_KEY, getBadgesEnabled, setBadgesEnabled } from '@/shared/badge-switch';
-import { MUTED_HOSTS_KEY, isHostMuted } from '@/shared/mute';
+import { MUTED_HOSTS_KEY, isHostMuted, setHostMuted } from '@/shared/mute';
 import type {
   FindingsResponse,
   OfflineDownloadMessage,
@@ -44,7 +44,10 @@ export default defineContentScript({
     const optimizePanel = createOptimizePanel();
     const overlay = createOverlay(
       (src) => optimizePanel.open(src),
-      (next) => void setBadgesEnabled(next)
+      (action) => {
+        if (action === 'hide-host') void setHostMuted(location.hostname, true);
+        else void setBadgesEnabled(action === 'show-all');
+      }
     );
 
     let latestFindings: PageFindings = aggregate([]);

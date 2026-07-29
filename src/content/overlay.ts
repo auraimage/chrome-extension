@@ -11,7 +11,7 @@
 // motion is allowed.
 import type { ImageFindings } from '../shared/types';
 import { buildBadgeLabel, buildPanelModel } from './badge-label';
-import { buildSwitchModel } from './switch-model';
+import { type SwitchActionId, buildSwitchModel } from './switch-model';
 
 export interface AnalyzedImage {
   findings: ImageFindings;
@@ -21,9 +21,11 @@ export interface AnalyzedImage {
 export interface OverlayController {
   /** Rebuild the badge set from the latest analysis. */
   render(items: AnalyzedImage[]): void;
-  /** Site mute: hide the whole overlay host, switcher included. */
+  /** Site mute: hide the whole overlay host, switcher included. One-way from
+   *  the page; the popup is the way back. */
   setMuted(muted: boolean): void;
-  /** Badge switch: hide/show badges but keep the on-page switcher reachable. */
+  /** Badge switch: hide badges but keep the switcher reachable as a dot, so a
+   *  global hide is always one press from being undone. */
   setBadgesEnabled(enabled: boolean): void;
   destroy(): void;
 }
@@ -48,6 +50,7 @@ const STYLE = `
     --muted: oklch(0.45 0.005 260);
     --border: oklch(0.91 0.003 260);
     --border-strong: oklch(0.78 0.005 260);
+    --hover-bg: oklch(0.94 0.003 260);
     --win: oklch(0.47 0.14 152);
     --loss: oklch(0.48 0.19 27);
     --ring: oklch(0.55 0.18 255);
@@ -63,6 +66,7 @@ const STYLE = `
       --muted: oklch(0.65 0.005 260);
       --border: oklch(0.28 0.005 260);
       --border-strong: oklch(0.45 0.005 260);
+      --hover-bg: oklch(0.24 0.005 260);
       --win: oklch(0.74 0.13 152);
       --loss: oklch(0.72 0.16 27);
       --ring: oklch(0.65 0.18 255);
@@ -128,7 +132,8 @@ const STYLE = `
   .pcta:hover { background: var(--fg-hover); border-color: var(--fg-hover); }
   .pcta:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   @media (prefers-reduced-motion: no-preference) {
-    .chip { transition: border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .chip, .switch { transition: border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .menu-item { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
     .pcta { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
     /* visibility waits out the fade on close; zero delay on open. */
     .panel {
@@ -137,21 +142,60 @@ const STYLE = `
     }
     .wrap.open .panel { transition-delay: 0s; }
   }
-  /* The Badge switch pill. Lives outside .badges so it stays reachable when
-     badges are hidden; collapsed to a small dot in the off state, expanding on
-     hover so the page keeps only a minimal permanent artifact. */
+  /* The on-page switcher. Lives outside .badges so it stays reachable when
+     badges are hidden. The wrap owns the fixed corner position so the menu can
+     anchor to it absolutely; the pill keeps the same weight it always had, per
+     ADR 0024's minimal-permanent-artifact constraint. Only the caret is new. */
+  .switch-wrap { position: fixed; right: 12px; bottom: 12px; pointer-events: auto; }
   .switch {
-    position: fixed; right: 12px; bottom: 12px;
-    display: inline-flex; align-items: center;
+    appearance: none; margin: 0;
+    display: inline-flex; align-items: center; gap: 4px;
     padding: 4px 8px; font: inherit; font-size: 11px; line-height: 1;
     color: var(--fg); background: var(--card);
     border: 1px solid var(--border); border-radius: 9999px;
-    cursor: pointer; pointer-events: auto;
+    cursor: pointer;
   }
-  .switch.off { width: 12px; height: 12px; padding: 0; }
-  .switch.off .switch-label { display: none; }
-  .switch.off:hover { width: auto; height: auto; padding: 4px 8px; }
-  .switch.off:hover .switch-label { display: inline; }
+  .switch:hover, .switch[aria-expanded='true'] { border-color: var(--border-strong); }
+  .switch:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  /* The disclosure affordance: a statistic is never written with a chevron, so
+     this is what reclassifies the pill from readout to control. */
+  .caret { font-size: 9px; line-height: 1; color: var(--muted); }
+  /* Collapsed dot: the minimal artifact left after a global hide, and the cheap
+     way back. The hover expansion is a desktop hint only, never the sole
+     affordance -- aria-label carries the name, and the menu carries the meaning. */
+  .switch.off { width: 12px; height: 12px; padding: 0; gap: 0; }
+  .switch.off .switch-label, .switch.off .caret { display: none; }
+  .switch.off:hover { width: auto; height: auto; padding: 4px 8px; gap: 4px; }
+  .switch.off:hover .switch-label, .switch.off:hover .caret { display: inline; }
+
+  /* Opens upward and right-aligned from the fixed bottom-right anchor, so it
+     never needs place()'s flip/clamp machinery. */
+  .menu {
+    position: absolute; right: 0; bottom: 100%; margin-bottom: 6px;
+    min-width: 184px; max-width: 300px;
+    padding: 6px; color: var(--fg); background: var(--popover);
+    border: 1px solid var(--border); border-radius: 0.75rem;
+    box-shadow: var(--panel-shadow);
+    font-size: 11px; line-height: 1.5;
+  }
+  .menu[hidden] { display: none; }
+  .menu-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 4px; padding: 2px 6px 6px;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+  }
+  .menu-help { color: var(--muted); text-decoration: none; }
+  .menu-help:hover { color: var(--fg); }
+  .menu-help:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .menu-item {
+    appearance: none; display: block; width: 100%; margin: 0; padding: 5px 6px;
+    font: inherit; font-size: 11px; line-height: 1.5; text-align: left;
+    color: var(--fg); background: transparent;
+    border: 0; border-radius: 0.375rem; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .menu-item:hover { background: var(--hover-bg); }
+  .menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 `;
 
 function makeText(tag: string, cls: string, text: string): HTMLElement {
@@ -163,7 +207,7 @@ function makeText(tag: string, cls: string, text: string): HTMLElement {
 
 export function createOverlay(
   onOptimize: (src: string) => void,
-  onBadgesToggle: (next: boolean) => void
+  onSwitchAction: (action: SwitchActionId) => void
 ): OverlayController {
   const host = ensureOverlayHost();
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
@@ -217,21 +261,84 @@ export function createOverlay(
   document.addEventListener('pointerdown', onDocPointerDown, true);
   document.addEventListener('keydown', onDocKeydown, true);
 
+  // The on-page switcher: a pill that opens a menu. The click itself changes
+  // nothing -- it offers the two scopes (this host, every site) and waits.
+  const switchWrap = document.createElement('div');
+  switchWrap.className = 'switch-wrap';
+  switchWrap.style.display = 'none'; // shown once the page has badged images
+
   const switchLabel = document.createElement('span');
   switchLabel.className = 'switch-label';
+
+  const caret = document.createElement('span');
+  caret.className = 'caret';
+  caret.textContent = '▾';
+  caret.setAttribute('aria-hidden', 'true');
+
   const switchButton = document.createElement('button');
   switchButton.type = 'button';
   switchButton.className = 'switch';
-  switchButton.style.display = 'none'; // shown once the page has badged images
-  switchButton.append(switchLabel);
+  switchButton.setAttribute('aria-haspopup', 'menu');
+  switchButton.setAttribute('aria-expanded', 'false');
+  switchButton.append(switchLabel, caret);
+
+  const menu = document.createElement('div');
+  menu.className = 'menu';
+  menu.setAttribute('role', 'menu');
+  menu.hidden = true;
+
+  const menuHead = document.createElement('div');
+  menuHead.className = 'menu-head';
+  const menuTitle = document.createElement('span');
+  menuTitle.textContent = 'aura x-ray';
+  const menuHelp = document.createElement('a');
+  menuHelp.className = 'menu-help';
+  menuHelp.href = 'https://auraimage.ai/extension';
+  menuHelp.target = '_blank';
+  menuHelp.rel = 'noreferrer';
+  menuHelp.textContent = '?';
+  menuHelp.setAttribute('aria-label', 'what is aura x-ray?');
+  menuHead.append(menuTitle, menuHelp);
+  menu.append(menuHead);
+
+  switchWrap.append(switchButton, menu);
+  root.append(switchWrap);
+
+  function closeMenu(): void {
+    if (menu.hidden) return;
+    const hadFocusInside = menu.contains(shadow.activeElement);
+    menu.hidden = true;
+    switchButton.setAttribute('aria-expanded', 'false');
+    if (pinnedWrap === switchWrap) {
+      pinnedWrap = null;
+      unpinCurrent = null;
+    }
+    if (hadFocusInside) switchButton.focus();
+  }
+
+  function openMenu(): void {
+    // The switcher is a page-level control, so it takes the single pinned slot
+    // from any open badge panel. One Escape then always has exactly one target.
+    if (pinnedWrap && pinnedWrap !== switchWrap) unpinCurrent?.();
+    menu.hidden = false;
+    switchButton.setAttribute('aria-expanded', 'true');
+    pinnedWrap = switchWrap;
+    unpinCurrent = closeMenu;
+  }
+
   switchButton.addEventListener('click', () => {
-    // Apply locally for instant feedback; persisting the Badge switch echoes
-    // the same state back through storage.onChanged (and into other tabs).
-    const next = !badgesOn;
-    setBadgesEnabled(next);
-    onBadgesToggle(next);
+    if (menu.hidden) openMenu();
+    else closeMenu();
   });
-  root.append(switchButton);
+
+  function runAction(id: SwitchActionId): void {
+    closeMenu();
+    // Apply locally for instant feedback; the callback persists, and
+    // storage.onChanged echoes the same state into every other tab.
+    if (id === 'hide-host') setMuted(true);
+    else setBadgesEnabled(id === 'show-all');
+    onSwitchAction(id);
+  }
 
   function syncSwitch(): void {
     const model = buildSwitchModel({
@@ -240,12 +347,39 @@ export function createOverlay(
       muted: mutedNow,
       hostname: location.hostname
     });
-    switchButton.style.display = model.visible ? '' : 'none';
+    switchWrap.style.display = model.visible ? '' : 'none';
+    if (!model.visible) closeMenu();
     switchButton.classList.toggle('off', model.collapsed);
-    switchButton.setAttribute('aria-pressed', String(!model.collapsed));
     switchButton.setAttribute('aria-label', model.ariaLabel);
-    switchButton.title = model.ariaLabel;
+    switchButton.title = 'aura x-ray options';
     switchLabel.textContent = model.label;
+
+    // Rebuild the rows ONLY when they actually change. syncSwitch() runs on
+    // every recollect, and a MutationObserver drives that every 500ms on a
+    // churning page (content.ts) -- an unconditional rebuild would destroy a
+    // focused row twice a second and swallow in-flight clicks. The id list
+    // fully determines the rows: labels depend only on the hostname, which is
+    // constant for the page.
+    const signature = model.items.map((item) => item.id).join(',');
+    if (menu.dataset.items !== signature) {
+      // The rows are about to change under the cursor -- which also happens
+      // when another tab flips the Badge switch and reorders them. Close first,
+      // so a click aimed at one row cannot land on another.
+      if (!menu.hidden) closeMenu();
+      menu.dataset.items = signature;
+      // forEach, not for...of: it does not depend on the DOM.Iterable lib.
+      menu.querySelectorAll('.menu-item').forEach((stale) => stale.remove());
+      for (const item of model.items) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'menu-item';
+        button.setAttribute('role', 'menuitem');
+        button.textContent = item.label;
+        button.title = item.label; // the full host, when the label truncates
+        button.addEventListener('click', () => runAction(item.id));
+        menu.append(button);
+      }
+    }
   }
 
   const io = new IntersectionObserver((entries) => {
@@ -281,8 +415,15 @@ export function createOverlay(
   function clear(): void {
     io.disconnect();
     visible.clear();
-    pinnedWrap = null;
-    unpinCurrent = null;
+    // A pin held by a badge wrap is stale, since the loop below destroys them.
+    // The switcher's wrap hangs off .root and survives, so an open menu keeps
+    // the slot: dropping it would leave the menu visibly open while Escape and
+    // outside-click both stop reaching it, on every recollect (500ms on a
+    // churning page). Do not "simplify" this back to an unconditional reset.
+    if (pinnedWrap !== switchWrap) {
+      pinnedWrap = null;
+      unpinCurrent = null;
+    }
     for (const wrap of byImg.values()) wrap.remove();
     byImg.clear();
   }
