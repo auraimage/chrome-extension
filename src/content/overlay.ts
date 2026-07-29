@@ -163,12 +163,23 @@ const STYLE = `
      this is what reclassifies the pill from readout to control. */
   .caret { font-size: 9px; line-height: 1; color: var(--muted); }
   /* Collapsed dot: the minimal artifact left after a global hide, and the cheap
-     way back. The hover expansion is a desktop hint only, never the sole
-     affordance -- aria-label carries the name, and the menu carries the meaning. */
-  .switch.off { width: 12px; height: 12px; padding: 0; gap: 0; }
+     way back. The drawn dot stays 12px per ADR 0024's permanent-artifact
+     constraint, while a transparent ::before overlay carries the 24x24 target
+     WCAG 2.5.8 asks for -- this is the only route back from a global hide, so it
+     must not be a 12px target. It expands on hover, on keyboard focus, and while
+     its menu is open: the expansion is never the sole affordance (aria-label
+     carries the name), and staying expanded while the menu is open stops the
+     trigger collapsing out from under it as the cursor travels to a row. */
+  .switch.off { position: relative; width: 12px; height: 12px; padding: 0; gap: 0; }
+  .switch.off::before {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 24px; height: 24px; transform: translate(-50%, -50%);
+  }
   .switch.off .switch-label, .switch.off .caret { display: none; }
-  .switch.off:hover { width: auto; height: auto; padding: 4px 8px; gap: 4px; }
-  .switch.off:hover .switch-label, .switch.off:hover .caret { display: inline; }
+  .switch.off:is(:hover, :focus-visible, [aria-expanded='true']) {
+    width: auto; height: auto; padding: 4px 8px; gap: 4px;
+  }
+  .switch.off:is(:hover, :focus-visible, [aria-expanded='true']) :is(.switch-label, .caret) { display: inline; }
 
   /* Opens upward and right-aligned from the fixed bottom-right anchor, so it
      never needs place()'s flip/clamp machinery. */
@@ -280,13 +291,16 @@ export function createOverlay(
   const switchButton = document.createElement('button');
   switchButton.type = 'button';
   switchButton.className = 'switch';
-  switchButton.setAttribute('aria-haspopup', 'menu');
+  // A disclosure, not an ARIA menu: role="menu" would put screen readers into
+  // application mode where arrow keys are expected, and there are none. Plain
+  // buttons behind aria-haspopup/aria-expanded give the Tab/Enter/Escape model
+  // this actually implements, and keep .menu-head's link reachable.
+  switchButton.setAttribute('aria-haspopup', 'true');
   switchButton.setAttribute('aria-expanded', 'false');
   switchButton.append(switchLabel, caret);
 
   const menu = document.createElement('div');
   menu.className = 'menu';
-  menu.setAttribute('role', 'menu');
   menu.hidden = true;
 
   const menuHead = document.createElement('div');
@@ -376,7 +390,6 @@ export function createOverlay(
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'menu-item';
-        button.setAttribute('role', 'menuitem');
         button.textContent = item.label;
         button.title = item.label; // the full host, when the label truncates
         button.addEventListener('click', () => runAction(item.id));

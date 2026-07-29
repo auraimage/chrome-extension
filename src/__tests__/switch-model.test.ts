@@ -48,18 +48,16 @@ describe('buildSwitchModel label', () => {
 });
 
 describe('buildSwitchModel ariaLabel', () => {
-  it('names the extension, the state, and the affordance', () => {
-    expect(buildSwitchModel(baseState()).ariaLabel).toBe('aura x-ray, 12 images. open menu');
+  it('contains the visible label verbatim, then the affordance', () => {
+    expect(buildSwitchModel(baseState()).ariaLabel).toBe('x-ray · 12, open menu');
   });
 
-  it('singularizes a lone image', () => {
-    expect(buildSwitchModel(baseState({ badgeCount: 1 })).ariaLabel).toBe('aura x-ray, 1 image. open menu');
+  it('uses the same shape for a lone image, since no noun is pluralized', () => {
+    expect(buildSwitchModel(baseState({ badgeCount: 1 })).ariaLabel).toBe('x-ray · 1, open menu');
   });
 
   it('reports the hidden state instead of a count when badges are off', () => {
-    expect(buildSwitchModel(baseState({ badgesEnabled: false })).ariaLabel).toBe(
-      'aura x-ray, badges hidden. open menu'
-    );
+    expect(buildSwitchModel(baseState({ badgesEnabled: false })).ariaLabel).toBe('x-ray, badges hidden. open menu');
   });
 
   it('never contains an em dash', () => {

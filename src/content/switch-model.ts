@@ -37,7 +37,11 @@ export interface SwitchModel {
    * "simplified" away.
    */
   label: string;
-  /** Accessible name. Never depends on hover or `title`, both of which fail on touch. */
+  /**
+   * Accessible name. Never depends on hover or `title`, both of which fail on
+   * touch. Must contain `label` verbatim (WCAG 2.5.3): voice control users say
+   * the words they can see, so the visible text has to be a substring of this.
+   */
   ariaLabel: string;
   /** Menu rows in display order. */
   items: SwitchMenuItem[];
@@ -46,15 +50,12 @@ export interface SwitchModel {
 export function buildSwitchModel(state: SwitchState): SwitchModel {
   const { badgeCount, badgesEnabled, muted, hostname } = state;
   const hideHost: SwitchMenuItem = { id: 'hide-host', label: `hide on ${hostname}` };
-  const plural = badgeCount === 1 ? 'image' : 'images';
 
   return {
     visible: !muted && badgeCount > 0,
     collapsed: !badgesEnabled,
     label: badgesEnabled ? `x-ray · ${badgeCount}` : 'x-ray',
-    ariaLabel: badgesEnabled
-      ? `aura x-ray, ${badgeCount} ${plural}. open menu`
-      : 'aura x-ray, badges hidden. open menu',
+    ariaLabel: badgesEnabled ? `x-ray · ${badgeCount}, open menu` : 'x-ray, badges hidden. open menu',
     items: badgesEnabled
       ? [hideHost, { id: 'hide-all', label: 'hide on every site' }]
       : [{ id: 'show-all', label: 'show on every site' }, hideHost]
