@@ -209,73 +209,72 @@ steps, then walk this list.
 8. Popup `hide on <host>`: badges disappear on that host and the button flips to
    `show on <host>`. Reload the page and badges stay hidden. `show on <host>`
    restores them.
-9. Popup `toggle overlay`: badges hide and show on the current page.
 
 ### Demo transform (click-triggered edge)
 
-10. Hover a badge and click `optimize`. The panel opens with `measuring...`,
-    then the before/after line with real numbers (for example
-    `original 4.2 MB jpeg, avif 180 KB, saves 96%`), a webp line, and a blurhash
-    canvas at the image's aspect ratio.
-11. The smart-crop strip shows three thumbnails labeled cover / face / auto, each
+9. Hover a badge and click `optimize`. The panel opens with `measuring...`,
+   then the before/after line with real numbers (for example
+   `original 4.2 MB jpeg, avif 180 KB, saves 96%`), a webp line, and a blurhash
+   canvas at the image's aspect ratio.
+10. The smart-crop strip shows three thumbnails labeled cover / face / auto, each
     with its own loading state and then an image.
-12. `download avif` and `download webp` save files named `<image>.avif` and
+11. `download avif` and `download webp` save files named `<image>.avif` and
     `<image>.webp`.
-13. `copy <picture> snippet` puts a valid `<picture>` block on the clipboard and
+12. `copy <picture> snippet` puts a valid `<picture>` block on the clipboard and
     counts as an export.
-14. On a page with a `cdn.auraimage.ai` image, the popup offers `copy <picture>
+13. On a page with a `cdn.auraimage.ai` image, the popup offers `copy <picture>
     snippet` built from the real project and name; it gates after the allowance.
-15. `suggest alt` shows a textarea with alt text plus `copy alt`. On an edge
+14. `suggest alt` shows a textarea with alt text plus `copy alt`. On an edge
     without a vision key it reads `alt suggestions are not configured`.
-16. Click `optimize` on a `data:` or `http:` image: it shows that the image needs
+15. Click `optimize` on a `data:` or `http:` image: it shows that the image needs
     a public https URL and fires no request.
-17. Open the panel, then quickly open it on a different image. No stats,
+16. Open the panel, then quickly open it on a different image. No stats,
     thumbnails, or alt from the first image bleed into the second.
-18. `Esc`, a backdrop click, and `close` all dismiss the panel.
+17. `Esc`, a backdrop click, and `close` all dismiss the panel.
 
 ### Context menu and offline compress
 
-19. Right-click an `<img>`. The `AuraImage` submenu shows `Optimize this image`
+18. Right-click an `<img>`. The `AuraImage` submenu shows `Optimize this image`
     and `Download as WebP (offline)`.
-20. `Optimize this image` opens the panel for that specific image.
-21. `Download as WebP (offline)` on a same-origin JPEG or PNG downloads
+19. `Optimize this image` opens the panel for that specific image.
+20. `Download as WebP (offline)` on a same-origin JPEG or PNG downloads
     `<name>.webp`, smaller than the original, and it opens as a valid image.
-22. Repeat on a cross-origin image (a CDN photo). It still downloads a valid
+21. Repeat on a cross-origin image (a CDN photo). It still downloads a valid
     WebP, proving the service-worker fetch keeps the canvas origin-clean.
-23. Repeat on a very large image (a multi-megapixel photo, for example
+22. Repeat on a very large image (a multi-megapixel photo, for example
     6000x4000). It still downloads a valid WebP. This exercises the chunked
     base64 marshaling in `offline-encode.ts` that a small image never reaches.
-24. Filenames: `photo.jpg?v=2#x` becomes `photo.webp`; an extension-less URL
+23. Filenames: `photo.jpg?v=2#x` becomes `photo.webp`; an extension-less URL
     becomes `<last-segment>.webp`; a `data:` or `blob:` image becomes
     `image.webp`.
-25. Right-click an SVG or an undecodable resource: a `could not compress this
+24. Right-click an SVG or an undecodable resource: a `could not compress this
     image offline` toast appears and nothing crashes.
 
 ### Gate, walls, options, theming
 
-26. After 3 total exports (panel downloads, copy-snippet, and offline saves all
+25. After 3 total exports (panel downloads, copy-snippet, and offline saves all
     count, across tabs) the export controls become the gate CTA linking
     `auraimage.ai` with `utm_medium=gate`; the offline menu item shows the gate
     toast and does not download or increment the counter.
-27. When the daily edge ceiling is hit or the edge returns 429, the panel shows
+26. When the daily edge ceiling is hit or the edge returns 429, the panel shows
     the inline wall linking `auraimage.ai` with `utm_medium=wall`.
-28. Options: a non-https edge base shows an error; a valid https value saves;
+27. Options: a non-https edge base shows an error; a valid https value saves;
     empty reverts to the production default; the counter reads
     `free exports used: n / 3`.
-29. Restricted pages (`chrome://extensions`, the Chrome Web Store): the popup
+28. Restricted pages (`chrome://extensions`, the Chrome Web Store): the popup
     shows `Can't read this page.`; the offline menu item does nothing, surfaces
     no error, and leaves the export counter unchanged.
-30. Dark and light: badges, the hover panel, the popup, the options page, and the
+29. Dark and light: badges, the hover panel, the popup, the options page, and the
     downloaded PNG all use the correct hue-260 neutrals in both schemes.
-31. Regression: after using the optimize panel, ambient badges and hover panels
+30. Regression: after using the optimize panel, ambient badges and hover panels
     are still fully styled. The overlay and the panel share one shadow root, and
     each must inject its own CSS regardless of construction order.
-32. Size probe: on a page whose images live on another origin without
+31. Size probe: on a page whose images live on another origin without
     `Timing-Allow-Origin` (subdomain CDNs are common), badges still show real
     byte sizes after a moment. When a size truly cannot be measured, the hover
     panel shows `size unavailable (cross-origin)` instead of silently omitting
     it.
-33. On-page switcher: a pill reading `x-ray · N ▾` sits bottom-right on any page
+32. On-page switcher: a pill reading `x-ray · N ▾` sits bottom-right on any page
     with badges. Clicking it opens a menu (`aura x-ray` with a `?` link, then
     `hide on <host>` and `hide on every site`) and changes nothing by itself.
     `hide on every site` hides badges in every open tab and collapses the pill

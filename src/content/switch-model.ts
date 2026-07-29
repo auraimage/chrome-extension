@@ -16,7 +16,11 @@ export interface SwitchMenuItem {
 }
 
 export interface SwitchState {
-  /** Badges currently rendered on the page. */
+  /**
+   * Images with a badge attached, shown or not. Must not be gated on
+   * `badgesEnabled`: a zero here makes `visible` false, which removes the
+   * collapsed dot, the only way back from `hide on every site`.
+   */
   badgeCount: number;
   /** The global Badge switch. */
   badgesEnabled: boolean;
