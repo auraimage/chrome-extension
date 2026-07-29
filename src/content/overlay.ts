@@ -11,6 +11,7 @@
 // motion is allowed.
 import type { ImageFindings } from '../shared/types';
 import { buildBadgeLabel, buildPanelModel } from './badge-label';
+import { buildSwitchModel } from './switch-model';
 
 export interface AnalyzedImage {
   findings: ImageFindings;
@@ -197,6 +198,9 @@ export function createOverlay(
   const byImg = new Map<HTMLImageElement, HTMLElement>();
   const visible = new Set<HTMLImageElement>();
   let badgesOn = true;
+  // Mirrors Site mute so the switch model can express the muted state; the host
+  // element is hidden separately by setMuted().
+  let mutedNow = false;
   let rafId = 0;
 
   // At most one panel is pinned at a time; these document-level listeners
@@ -230,11 +234,18 @@ export function createOverlay(
   root.append(switchButton);
 
   function syncSwitch(): void {
-    switchButton.style.display = byImg.size > 0 ? '' : 'none';
-    switchButton.classList.toggle('off', !badgesOn);
-    switchButton.setAttribute('aria-pressed', String(badgesOn));
-    switchButton.title = badgesOn ? 'hide AuraImage badges on all sites' : 'show AuraImage badges on all sites';
-    switchLabel.textContent = badgesOn ? `x-ray · ${byImg.size}` : 'x-ray';
+    const model = buildSwitchModel({
+      badgeCount: byImg.size,
+      badgesEnabled: badgesOn,
+      muted: mutedNow,
+      hostname: location.hostname
+    });
+    switchButton.style.display = model.visible ? '' : 'none';
+    switchButton.classList.toggle('off', model.collapsed);
+    switchButton.setAttribute('aria-pressed', String(!model.collapsed));
+    switchButton.setAttribute('aria-label', model.ariaLabel);
+    switchButton.title = model.ariaLabel;
+    switchLabel.textContent = model.label;
   }
 
   const io = new IntersectionObserver((entries) => {
@@ -441,7 +452,9 @@ export function createOverlay(
   }
 
   function setMuted(muted: boolean): void {
+    mutedNow = muted;
     host.style.display = muted ? 'none' : '';
+    syncSwitch();
   }
 
   function setBadgesEnabled(enabled: boolean): void {
