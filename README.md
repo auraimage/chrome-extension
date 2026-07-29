@@ -280,10 +280,11 @@ steps, then walk this list.
     `hide on <host>` and `hide on every site`) and changes nothing by itself.
     `hide on every site` hides badges in every open tab and collapses the pill
     to a dot; clicking the dot reopens the menu, now leading with `show on every
-    site`. `hide on <host>` removes badges and the switcher on that host only,
-    and the popup's `show on <host>` restores them. Escape, or a click anywhere
-    else, closes the menu; opening it closes any pinned badge panel. Muted sites
-    show neither badges nor the pill.
+    site`. The popup's `hide on every site` button flips the same state.
+    `hide on <host>` removes badges and the switcher on that host only, and the
+    popup's `show on <host>` restores them. Escape, or a click anywhere else,
+    closes the menu; opening it closes any pinned badge panel. Muted sites show
+    neither badges nor the pill.
 
 ## Privacy
 
