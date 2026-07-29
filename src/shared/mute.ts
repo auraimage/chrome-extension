@@ -1,7 +1,8 @@
 // Per-site badge muting, persisted in browser.storage.sync under `mutedHosts`.
-// Shared by the content script (reads it to decide initial overlay visibility)
-// and the popup (its "mute this site" toggle writes it). Badges default ON, so
-// a host is visible unless it appears in this list.
+// Shared by the content script (reads it to decide initial overlay visibility,
+// and writes it from the switcher menu's "hide on <host>" row) and the popup
+// (its "hide on <host>" toggle writes it). Badges default ON, so a host is
+// visible unless it appears in this list.
 import { browser } from 'wxt/browser';
 
 /** browser.storage.sync key holding the muted hostnames. */

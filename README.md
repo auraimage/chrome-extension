@@ -206,9 +206,9 @@ steps, then walk this list.
    footer reads `measured, not scored` / `auraimage.ai`.
 7. Popup `copy agent prompt`: copies a prompt built from the page's public image
    URLs. This is never gated.
-8. Popup `mute this site`: badges disappear on that host and the button flips to
-   `unmute this site`. Reload the page and badges stay hidden. Unmute restores
-   them.
+8. Popup `hide on <host>`: badges disappear on that host and the button flips to
+   `show on <host>`. Reload the page and badges stay hidden. `show on <host>`
+   restores them.
 9. Popup `toggle overlay`: badges hide and show on the current page.
 
 ### Demo transform (click-triggered edge)
@@ -275,10 +275,14 @@ steps, then walk this list.
     byte sizes after a moment. When a size truly cannot be measured, the hover
     panel shows `size unavailable (cross-origin)` instead of silently omitting
     it.
-33. Badge switch: a pill reading `x-ray · N` sits bottom-right on any page with
-    badges. Clicking it hides badges on every site and in every open tab, and
-    collapses the pill to a small dot; clicking the dot restores them. The
-    popup's `hide badges everywhere` button flips the same state. Muted sites
+33. On-page switcher: a pill reading `x-ray · N ▾` sits bottom-right on any page
+    with badges. Clicking it opens a menu (`aura x-ray` with a `?` link, then
+    `hide on <host>` and `hide on every site`) and changes nothing by itself.
+    `hide on every site` hides badges in every open tab and collapses the pill
+    to a dot; clicking the dot reopens the menu, now leading with `show on every
+    site`. `hide on <host>` removes badges and the switcher on that host only,
+    and the popup's `show on <host>` restores them. Escape, or a click anywhere
+    else, closes the menu; opening it closes any pinned badge panel. Muted sites
     show neither badges nor the pill.
 
 ## Privacy
