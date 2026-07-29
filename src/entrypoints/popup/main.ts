@@ -63,6 +63,14 @@ function statBlock(label: string, value: string): HTMLElement {
   return el('div', { className: 'stat' }, [el('dt', { textContent: label }), el('dd', { textContent: value })]);
 }
 
+/** Set a visibility switch's label, mirroring it to `title`. A hostname is
+ *  unbounded and still clips at full width, and the tooltip is then the only
+ *  way to read it in full (same escape hatch as the on-page menu). */
+function setSwitchLabel(button: HTMLButtonElement, label: string): void {
+  button.textContent = label;
+  button.title = label;
+}
+
 /** Briefly swap a button's label to confirm an action ran. */
 function flash(button: HTMLButtonElement, message: string): void {
   const original = button.textContent ?? '';
@@ -218,30 +226,34 @@ function renderCard(
 
   // Same wording as the on-page switcher menu: "mute" stays the domain term,
   // "hide" is the UI verb everywhere a user reads it (CONTEXT.md "Site mute").
+  // Both switches are full-width: in a half-width column the shared "hide on "
+  // prefix survives truncation and the scope does not, so the pair reads alike.
   const muteLabel = (muted: boolean): string => (muted ? `show on ${hostname}` : `hide on ${hostname}`);
-  const muteButton = el('button', { type: 'button', textContent: muteLabel(false) });
+  const muteButton = el('button', { type: 'button', className: 'wide' });
+  setSwitchLabel(muteButton, muteLabel(false));
   void isHostMuted(hostname).then((muted) => {
-    muteButton.textContent = muteLabel(muted);
+    setSwitchLabel(muteButton, muteLabel(muted));
   });
   muteButton.addEventListener('click', () => {
     void (async () => {
       const nextMuted = !(await isHostMuted(hostname));
       await setHostMuted(hostname, nextMuted);
-      muteButton.textContent = muteLabel(nextMuted);
+      setSwitchLabel(muteButton, muteLabel(nextMuted));
     })();
   });
 
   // The Badge switch: same persisted state as the on-page switcher, all sites.
   const badgesLabel = (enabled: boolean): string => (enabled ? 'hide on every site' : 'show on every site');
-  const badgesButton = el('button', { type: 'button', textContent: badgesLabel(true) });
+  const badgesButton = el('button', { type: 'button', className: 'wide' });
+  setSwitchLabel(badgesButton, badgesLabel(true));
   void getBadgesEnabled().then((enabled) => {
-    badgesButton.textContent = badgesLabel(enabled);
+    setSwitchLabel(badgesButton, badgesLabel(enabled));
   });
   badgesButton.addEventListener('click', () => {
     void (async () => {
       const next = !(await getBadgesEnabled());
       await setBadgesEnabled(next);
-      badgesButton.textContent = badgesLabel(next);
+      setSwitchLabel(badgesButton, badgesLabel(next));
     })();
   });
 
