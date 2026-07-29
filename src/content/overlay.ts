@@ -145,8 +145,10 @@ const STYLE = `
   /* The on-page switcher. Lives outside .badges so it stays reachable when
      badges are hidden. The wrap owns the fixed corner position so the menu can
      anchor to it absolutely; the pill keeps the same weight it always had, per
-     ADR 0024's minimal-permanent-artifact constraint. Only the caret is new. */
-  .switch-wrap { position: fixed; right: 12px; bottom: 12px; pointer-events: auto; }
+     ADR 0024's minimal-permanent-artifact constraint. Only the caret is new.
+     z-index clears .wrap.open's 1: without it an open badge panel paints over
+     the menu and wins hit-testing, silently swallowing a row's click. */
+  .switch-wrap { position: fixed; right: 12px; bottom: 12px; z-index: 2; pointer-events: auto; }
   .switch {
     appearance: none; margin: 0;
     display: inline-flex; align-items: center; gap: 4px;
@@ -355,10 +357,11 @@ export function createOverlay(
     switchLabel.textContent = model.label;
 
     // Rebuild the rows ONLY when they actually change. syncSwitch() runs on
-    // every recollect, and a MutationObserver drives that every 500ms on a
-    // churning page (content.ts) -- an unconditional rebuild would destroy a
-    // focused row twice a second and swallow in-flight clicks. The id list
-    // fully determines the rows: labels depend only on the hostname, which is
+    // every recollect, and the MutationObserver's is trailing-debounced: one
+    // lands shortly after each burst of DOM churn settles, so an SPA navigation
+    // or an ad rotation triggers one. An unconditional rebuild would destroy a
+    // focused row and swallow an in-flight click every time. The id list fully
+    // determines the rows: labels depend only on the hostname, which is
     // constant for the page.
     const signature = model.items.map((item) => item.id).join(',');
     if (menu.dataset.items !== signature) {
@@ -418,8 +421,9 @@ export function createOverlay(
     // A pin held by a badge wrap is stale, since the loop below destroys them.
     // The switcher's wrap hangs off .root and survives, so an open menu keeps
     // the slot: dropping it would leave the menu visibly open while Escape and
-    // outside-click both stop reaching it, on every recollect (500ms on a
-    // churning page). Do not "simplify" this back to an unconditional reset.
+    // outside-click both stop reaching it, on the first recollect after any
+    // burst of DOM churn settles. Do not "simplify" this back to an
+    // unconditional reset.
     if (pinnedWrap !== switchWrap) {
       pinnedWrap = null;
       unpinCurrent = null;
