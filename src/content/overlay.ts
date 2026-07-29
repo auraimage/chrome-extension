@@ -164,17 +164,21 @@ const STYLE = `
   .caret { font-size: 9px; line-height: 1; color: var(--muted); }
   /* Collapsed dot: the minimal artifact left after a global hide, and the cheap
      way back. The drawn dot stays 12px per ADR 0024's permanent-artifact
-     constraint, while a transparent ::before overlay carries the 24x24 target
+     constraint, while a transparent ::before halo carries the 24x24 target
      WCAG 2.5.8 asks for -- this is the only route back from a global hide, so it
      must not be a 12px target. It expands on hover, on keyboard focus, and while
      its menu is open: the expansion is never the sole affordance (aria-label
      carries the name), and staying expanded while the menu is open stops the
-     trigger collapsing out from under it as the cursor travels to a row. */
+     trigger collapsing out from under it as the cursor travels to a row.
+     The halo is sized by inset, not by width/height: inset resolves against the
+     button's padding box, so it grows with the button through the expanded
+     states. A fixed 24x24 would re-centre on the larger box instead, and since
+     the wrap is anchored right/bottom the button grows left and up -- collapsing
+     the overhang on the two edges nearest the viewport corner to nothing, which
+     is precisely where the pointer arrives. -7px, not -6px: the UA sheet makes
+     button border-box, so the padding box is 10x10 and -6px would give 22x22. */
   .switch.off { position: relative; width: 12px; height: 12px; padding: 0; gap: 0; }
-  .switch.off::before {
-    content: ''; position: absolute; top: 50%; left: 50%;
-    width: 24px; height: 24px; transform: translate(-50%, -50%);
-  }
+  .switch.off::before { content: ''; position: absolute; inset: -7px; }
   .switch.off .switch-label, .switch.off .caret { display: none; }
   .switch.off:is(:hover, :focus-visible, [aria-expanded='true']) {
     width: auto; height: auto; padding: 4px 8px; gap: 4px;
@@ -291,10 +295,13 @@ export function createOverlay(
   const switchButton = document.createElement('button');
   switchButton.type = 'button';
   switchButton.className = 'switch';
-  // A disclosure, not an ARIA menu: role="menu" would put screen readers into
-  // application mode where arrow keys are expected, and there are none. Plain
-  // buttons behind aria-haspopup/aria-expanded give the Tab/Enter/Escape model
-  // this actually implements, and keep .menu-head's link reachable.
+  // A disclosure, not an ARIA menu. The fix is the *absence* of role="menu" and
+  // role="menuitem" below: those put screen readers into application mode where
+  // arrow keys are the expected navigation and there are none, and .menu-head is
+  // not a permitted child of role="menu", so its link could go unexposed. The
+  // value here is not what does that work -- ARIA maps aria-haspopup="true" onto
+  // "menu", so the two are equivalent and swapping them changes nothing. Plain
+  // buttons plus aria-expanded give the Tab/Enter/Escape model actually built.
   switchButton.setAttribute('aria-haspopup', 'true');
   switchButton.setAttribute('aria-expanded', 'false');
   switchButton.append(switchLabel, caret);
