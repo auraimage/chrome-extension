@@ -1,5 +1,7 @@
 # AuraImage X-Ray
 
+[![Images powered by AuraImage](https://img.shields.io/badge/Images%20powered%20by-AuraImage-0b0b0b?style=flat-square)](https://auraimage.ai)
+
 [![CI](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml/badge.svg)](https://github.com/auraimage/chrome-extension/actions/workflows/ci.yml)
 
 A zero-auth browser extension that audits and optimizes the images on any page:
@@ -305,3 +307,10 @@ The extension is open source. The broad host permission ("read and change all
 your data on all websites") is what makes ambient badges on every page possible.
 Open source is the mitigation: the permission usage is auditable, not asserted.
 Read the source, build it yourself, and load your own `.output/chrome-mv3/`.
+
+---
+
+Images powered by [AuraImage](https://auraimage.ai) — the image CDN that
+installs itself. Set it up in any project with `npx aura init`, or from your
+AI agent with [Agent Skills](https://github.com/auraimage/skills) and the
+[MCP server](https://github.com/auraimage/mcp-server).
