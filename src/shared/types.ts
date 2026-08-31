@@ -112,6 +112,31 @@ export interface FindingsResponse {
   findings: PageFindings;
   pageUrl: string;
   renderedImageCount: number;
+  /** The highlight currently framed on the page, so the popup opens in sync. */
+  highlight: HighlightKey | null;
+}
+
+/**
+ * What the popup can ask the page to frame: one of the four card flags, or
+ * the LCP image. Labels, tones, and the per-image predicate live in
+ * `shared/highlight.ts` so the popup rows and the on-page bar never drift.
+ */
+export type HighlightKey = 'oversized' | 'altAbsent' | 'missingLazy' | 'legacyFormat' | 'lcp';
+
+/** Popup to content script: frame every image matching `key`, or clear with null. */
+export interface SetHighlightMessage {
+  type: 'aura:set-highlight';
+  key: HighlightKey | null;
+}
+
+/**
+ * The content script's reply to {@link SetHighlightMessage}: the key now
+ * active (null when cleared or unknown) and how many rendered `<img>` elements
+ * it framed. The popup renders its pressed state from this, not optimistically.
+ */
+export interface HighlightResponse {
+  key: HighlightKey | null;
+  matches: number;
 }
 
 /**
@@ -227,4 +252,5 @@ export type AuraMessage =
   | DemoAltRequest
   | OpenOptimizeMessage
   | OfflineDownloadMessage
-  | OfflineNoticeMessage;
+  | OfflineNoticeMessage
+  | SetHighlightMessage;

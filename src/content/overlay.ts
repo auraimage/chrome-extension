@@ -6,10 +6,15 @@
 // keyboard focus pins it, and the panel flips above the chip or clamps
 // horizontally so it never clips at a viewport edge. Styling follows DESIGN.md:
 // hue-260 oklch neutrals, 1px borders, 0.75rem panel radius, ui-monospace 11px,
-// win/loss semantic tones shared with the optimize panel, a shadow only on the
-// floating panel, dark scheme via prefers-color-scheme, transitions only when
-// motion is allowed.
-import type { ImageFindings } from '../shared/types';
+// the three semantic tones shared with the popup and the optimize panel (loss =
+// a fired flag or bytes paid, win = a saving, accent = the LCP designation), a
+// shadow only on the floating panel, dark scheme via prefers-color-scheme,
+// transitions only when motion is allowed. The popup can also ask for a
+// highlight: every image matching one flag (or the LCP image) gets a frame
+// drawn over its box, the other badges recede, and a bar above the switcher
+// steps through the matches and clears them.
+import { buildHighlightBarModel, highlightTone, matchesHighlight, stepIndex } from '../shared/highlight';
+import type { HighlightKey, ImageFindings } from '../shared/types';
 import { buildBadgeLabel, buildPanelModel } from './badge-label';
 import { type SwitchActionId, buildSwitchModel } from './switch-model';
 
@@ -21,12 +26,16 @@ export interface AnalyzedImage {
 export interface OverlayController {
   /** Rebuild the badge set from the latest analysis. */
   render(items: AnalyzedImage[]): void;
-  /** Site mute: hide the whole overlay host, switcher included. One-way from
-   *  the page; the popup is the way back. */
+  /** Site mute: hide badges and the switcher. One-way from the page; the popup
+   *  is the way back. The optimize panel stays reachable. */
   setMuted(muted: boolean): void;
   /** Badge switch: hide badges but keep the switcher reachable as a dot, so a
    *  global hide is always one press from being undone. */
   setBadgesEnabled(enabled: boolean): void;
+  /** Frame every image matching `key` (null clears). Returns how many were framed. */
+  setHighlight(key: HighlightKey | null): number;
+  /** The key currently framed, so the popup opens in sync with the page. */
+  getHighlight(): HighlightKey | null;
   destroy(): void;
 }
 
@@ -51,9 +60,11 @@ const STYLE = `
     --border: oklch(0.91 0.003 260);
     --border-strong: oklch(0.78 0.005 260);
     --hover-bg: oklch(0.94 0.003 260);
-    --win: oklch(0.47 0.14 152);
+    --win: oklch(0.47 0.13 152);
     --loss: oklch(0.48 0.19 27);
-    --ring: oklch(0.55 0.18 255);
+    --accent: oklch(0.5 0.16 255);
+    --accent-soft: oklch(0.95 0.025 255);
+    --ring: var(--accent);
     --panel-shadow: 0 2px 6px oklch(0.12 0.005 260 / 0.06), 0 14px 32px oklch(0.12 0.005 260 / 0.12);
     font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
   }
@@ -69,12 +80,19 @@ const STYLE = `
       --hover-bg: oklch(0.24 0.005 260);
       --win: oklch(0.74 0.13 152);
       --loss: oklch(0.72 0.16 27);
-      --ring: oklch(0.65 0.18 255);
+      --accent: oklch(0.72 0.14 255);
+      --accent-soft: oklch(0.27 0.06 255);
       --panel-shadow: 0 2px 6px oklch(0 0 0 / 0.35), 0 14px 32px oklch(0 0 0 / 0.5);
     }
   }
   .wrap { position: absolute; top: 0; left: 0; pointer-events: auto; will-change: transform; }
   .wrap.open { z-index: 1; }
+  /* While a highlight is active the matching badges keep full weight and take
+     the highlight's tone on their border; every other badge recedes. An open
+     panel never dims out from under the pointer. */
+  .badges.filtering .wrap:not(.hit):not(.open) { opacity: 0.35; }
+  .wrap.hit .chip { border-color: var(--loss); }
+  .root[data-tone='accent'] .wrap.hit .chip { border-color: var(--accent); }
   .chip {
     appearance: none; margin: 0;
     display: inline-flex; align-items: center; gap: 6px;
@@ -86,6 +104,12 @@ const STYLE = `
   .chip:hover, .wrap.open .chip { border-color: var(--border-strong); }
   .chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--loss); flex: 0 0 auto; }
+  /* The LCP designation, on the chip and in the panel: accent-toned, because it
+     marks the one image that matters most, not a defect. */
+  .clcp, .plcp {
+    padding: 0 5px; font-size: 9px; font-weight: 500; line-height: 1.6; letter-spacing: 0.04em;
+    color: var(--accent); background: var(--accent-soft); border-radius: 9999px;
+  }
   /* The slot hangs the panel off the chip and its padding bridges the gap, so
      the hover region is continuous: a margin gap would drop :hover as the
      pointer crosses it. .up flips it above the chip when the viewport bottom
@@ -108,10 +132,7 @@ const STYLE = `
   .phead { display: flex; align-items: baseline; gap: 6px; }
   .pformat { font-size: 12px; font-weight: 700; letter-spacing: -0.01em; }
   .psize { font-size: 12px; font-variant-numeric: tabular-nums; }
-  .plcp {
-    align-self: center; padding: 1px 5px; font-size: 10px; line-height: 1.4;
-    color: var(--muted); border: 1px solid var(--border); border-radius: 9999px;
-  }
+  .plcp { align-self: center; font-size: 10px; }
   .pstatus { margin-left: auto; padding-left: 10px; }
   .pstatus.win { color: var(--win); }
   .pstatus.loss { color: var(--loss); }
@@ -133,7 +154,9 @@ const STYLE = `
   .pcta:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
   @media (prefers-reduced-motion: no-preference) {
     .chip, .switch { transition: border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .wrap { transition: opacity 140ms cubic-bezier(0.22, 1, 0.36, 1); }
     .menu-item { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .hbtn { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1), color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
     .pcta { transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1), border-color 120ms cubic-bezier(0.2, 0.8, 0.2, 1); }
     /* visibility waits out the fade on close; zero delay on open. */
     .panel {
@@ -142,13 +165,26 @@ const STYLE = `
     }
     .wrap.open .panel { transition-delay: 0s; }
   }
+  /* The dock pins the corner controls: the on-page switcher, and above it the
+     highlight bar while a highlight is active. Stacked, not side by side, so
+     neither pill has to match the other's height. Its z-index clears
+     .wrap.open's 1: without it an open badge panel paints over the menu and
+     wins hit-testing, silently swallowing a row's click. pointer-events stay
+     off on the dock itself so the gap between the pills passes clicks through. */
+  .dock {
+    position: fixed; right: 12px; bottom: 12px; z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+    pointer-events: none;
+  }
   /* The on-page switcher. Lives outside .badges so it stays reachable when
-     badges are hidden. The wrap owns the fixed corner position so the menu can
-     anchor to it absolutely; the pill keeps the same weight it always had, per
-     ADR 0024's minimal-permanent-artifact constraint. Only the caret is new.
-     z-index clears .wrap.open's 1: without it an open badge panel paints over
-     the menu and wins hit-testing, silently swallowing a row's click. */
-  .switch-wrap { position: fixed; right: 12px; bottom: 12px; z-index: 2; pointer-events: auto; }
+     badges are hidden. The wrap is the menu's positioning anchor; the pill
+     keeps the same weight it always had, per ADR 0024's minimal-permanent-
+     artifact constraint. Only the caret is new. */
+  .switch-wrap { position: relative; pointer-events: auto; }
+  /* Site mute hides the ambient surfaces only. A highlight the user asked for
+     from the popup still frames its images on a muted host, with the bar as
+     the way to clear it. */
+  .root.muted .badges, .root.muted .switch-wrap { display: none; }
   .switch {
     appearance: none; margin: 0;
     display: inline-flex; align-items: center; gap: 4px;
@@ -213,6 +249,41 @@ const STYLE = `
   }
   .menu-item:hover { background: var(--hover-bg); }
   .menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+  /* Highlight frames: one per matching image, drawn over its box in the same
+     rAF pass that places the badges, and painted beneath them so a chip still
+     sits on its image's corner. pointer-events stay off so the page's own
+     clicks on the image go through. The current match (the one the page last
+     scrolled to) wears a second ring outside a card-colored gap. */
+  .frames { position: absolute; inset: 0; pointer-events: none; }
+  .frame {
+    position: absolute; top: 0; left: 0; box-sizing: border-box;
+    border: 2px solid var(--loss); border-radius: 3px;
+    will-change: transform; pointer-events: none;
+  }
+  .frame.current { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--loss); }
+  .root[data-tone='accent'] .frame { border-color: var(--accent); }
+  .root[data-tone='accent'] .frame.current { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+  /* The highlight bar: what is framed, which match the page is on, and the
+     way out. Its three buttons are 24x24 targets (WCAG 2.5.8). */
+  .hbar {
+    display: inline-flex; align-items: center;
+    padding: 0 2px 0 10px; color: var(--fg); background: var(--card);
+    border: 1px solid var(--border); border-radius: 9999px;
+    font-size: 11px; line-height: 1; white-space: nowrap; pointer-events: auto;
+  }
+  .hbar[hidden] { display: none; }
+  .hdot { width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--loss); flex: 0 0 auto; }
+  .root[data-tone='accent'] .hdot { background: var(--accent); }
+  .hcount { margin: 0 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hbtn {
+    appearance: none; width: 24px; height: 24px; margin: 0; padding: 0;
+    font: inherit; font-size: 14px; line-height: 1; color: var(--muted);
+    background: transparent; border: 0; border-radius: 9999px; cursor: pointer;
+  }
+  .hbtn:hover:not(:disabled) { color: var(--fg); background: var(--hover-bg); }
+  .hbtn:disabled { opacity: 0.4; cursor: default; }
+  .hbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 `;
 
 function makeText(tag: string, cls: string, text: string): HTMLElement {
@@ -223,7 +294,7 @@ function makeText(tag: string, cls: string, text: string): HTMLElement {
 }
 
 export function createOverlay(
-  onOptimize: (src: string) => void,
+  onOptimize: (src: string, opener: HTMLElement) => void,
   onSwitchAction: (action: SwitchActionId) => void
 ): OverlayController {
   const host = ensureOverlayHost();
@@ -238,12 +309,15 @@ export function createOverlay(
     style.textContent = STYLE;
     shadow.append(style);
   }
-  let root = shadow.querySelector<HTMLElement>('.root');
-  if (!root) {
-    root = document.createElement('div');
-    root.className = 'root';
-    shadow.append(root);
-  }
+  // Resolved once to a const so the closures below (setMuted) see a non-null root.
+  const root: HTMLElement =
+    shadow.querySelector<HTMLElement>('.root') ??
+    (() => {
+      const created = document.createElement('div');
+      created.className = 'root';
+      shadow.append(created);
+      return created;
+    })();
 
   // Badges live in their own container so the Badge switch (its sibling
   // inside the styled root) survives hiding them.
@@ -254,9 +328,16 @@ export function createOverlay(
     root.append(container);
   }
 
+  // Frames sit beneath the badges so a chip still reads on its image's corner.
+  const frames = document.createElement('div');
+  frames.className = 'frames';
+  root.insertBefore(frames, container);
+
   // img → its badge wrap. A Map keeps the per-frame reposition and the
   // IntersectionObserver callback O(visible) instead of scanning every badge.
   const byImg = new Map<HTMLImageElement, HTMLElement>();
+  // img → its findings, so a highlight can be re-applied after any re-collect.
+  const findingsByImg = new Map<HTMLImageElement, ImageFindings>();
   const visible = new Set<HTMLImageElement>();
   let badgesOn = true;
   // Mirrors Site mute so the switch model can express the muted state; the host
@@ -269,11 +350,28 @@ export function createOverlay(
   let pinnedWrap: HTMLElement | null = null;
   let unpinCurrent: (() => void) | null = null;
 
+  // The active highlight: its key, the matching <img> elements in document
+  // order, the one the page last scrolled to, and the frame drawn over each.
+  let highlightKey: HighlightKey | null = null;
+  let hits: HTMLImageElement[] = [];
+  let hitIndex = 0;
+  const frameByImg = new Map<HTMLImageElement, HTMLElement>();
+
+  /** The optimize panel shares this shadow root and owns Escape while open. */
+  function optimizeOpen(): boolean {
+    return shadow.querySelector<HTMLElement>('.obk')?.style.display === 'flex';
+  }
+
   function onDocPointerDown(event: PointerEvent): void {
     if (pinnedWrap && !event.composedPath().includes(pinnedWrap)) unpinCurrent?.();
   }
   function onDocKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape' && pinnedWrap) unpinCurrent?.();
+    if (event.key !== 'Escape') return;
+    // One Escape, one target: a pinned panel or the menu first, then the
+    // highlight. Never the highlight while the optimize modal is up, since the
+    // modal was likely opened from a framed image and takes the same key.
+    if (pinnedWrap) unpinCurrent?.();
+    else if (highlightKey !== null && !optimizeOpen()) setHighlight(null);
   }
   document.addEventListener('pointerdown', onDocPointerDown, true);
   document.addEventListener('keydown', onDocKeydown, true);
@@ -319,13 +417,51 @@ export function createOverlay(
   menuHelp.href = 'https://auraimage.ai/extension';
   menuHelp.target = '_blank';
   menuHelp.rel = 'noreferrer';
-  menuHelp.textContent = '?';
+  menuHelp.textContent = 'help';
   menuHelp.setAttribute('aria-label', 'what is aura x-ray?');
   menuHead.append(menuTitle, menuHelp);
   menu.append(menuHead);
 
   switchWrap.append(switchButton, menu);
-  root.append(switchWrap);
+
+  // The highlight bar, stacked above the switcher in the dock.
+  function barButton(glyph: string, name: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'hbtn';
+    button.textContent = glyph;
+    button.setAttribute('aria-label', name);
+    button.title = name;
+    return button;
+  }
+  const bar = document.createElement('div');
+  bar.className = 'hbar';
+  bar.hidden = true;
+  bar.setAttribute('role', 'group');
+  const barDot = document.createElement('span');
+  barDot.className = 'hdot';
+  barDot.setAttribute('aria-hidden', 'true');
+  const barLabel = makeText('span', 'hlabel', '');
+  const barCount = makeText('span', 'hcount', '');
+  barCount.setAttribute('aria-live', 'polite');
+  const barPrev = barButton('‹', 'previous match');
+  const barNext = barButton('›', 'next match');
+  const barClear = barButton('×', 'clear highlight');
+  bar.append(barDot, barLabel, barCount, barPrev, barNext, barClear);
+  barPrev.addEventListener('click', () => goTo(stepIndex(hitIndex, -1, hits.length)));
+  barNext.addEventListener('click', () => goTo(stepIndex(hitIndex, 1, hits.length)));
+  barClear.addEventListener('click', () => {
+    // The bar disappears with the highlight; keyboard focus lands on the
+    // switcher instead of vanishing (a no-op while the switcher is hidden).
+    const hadFocus = bar.contains(shadow.activeElement);
+    setHighlight(null);
+    if (hadFocus) switchButton.focus();
+  });
+
+  const dock = document.createElement('div');
+  dock.className = 'dock';
+  dock.append(bar, switchWrap);
+  root.append(dock);
 
   function closeMenu(): void {
     if (menu.hidden) return;
@@ -432,7 +568,100 @@ export function createOverlay(
         wrap.style.transform = `translate(${Math.round(rect.left)}px, ${Math.round(rect.top)}px)`;
       }
     }
+    // Frames follow their images regardless of the badge switch: a highlight
+    // is an explicit request, not ambient. Size writes only when changed.
+    for (const [img, frame] of frameByImg) {
+      if (!visible.has(img)) {
+        frame.style.display = 'none';
+        continue;
+      }
+      const rect = img.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        frame.style.display = 'none';
+        continue;
+      }
+      frame.style.display = '';
+      frame.style.transform = `translate(${Math.round(rect.left)}px, ${Math.round(rect.top)}px)`;
+      const width = `${Math.round(rect.width)}px`;
+      const height = `${Math.round(rect.height)}px`;
+      if (frame.style.width !== width) frame.style.width = width;
+      if (frame.style.height !== height) frame.style.height = height;
+    }
     rafId = requestAnimationFrame(positionAll);
+  }
+
+  function clearFrames(): void {
+    for (const frame of frameByImg.values()) frame.remove();
+    frameByImg.clear();
+    hits = [];
+  }
+
+  /** Rebuild the frames and the badge hit/dim states for the active key. */
+  function applyHighlight(): void {
+    clearFrames();
+    const key = highlightKey;
+    if (key === null) delete root.dataset.tone;
+    else root.dataset.tone = highlightTone(key);
+    container.classList.toggle('filtering', key !== null);
+    for (const [img, wrap] of byImg) {
+      const findings = findingsByImg.get(img);
+      const hit = key !== null && findings !== undefined && matchesHighlight(key, findings);
+      wrap.classList.toggle('hit', hit);
+      if (!hit) continue;
+      hits.push(img);
+      const frame = document.createElement('div');
+      frame.className = 'frame';
+      frame.style.display = 'none';
+      frames.append(frame);
+      frameByImg.set(img, frame);
+    }
+    // Document order, so ‹ › walk the page top to bottom even when a reused
+    // resource's second element was collected ahead of its DOM neighbors.
+    hits.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    hitIndex = hits.length === 0 ? 0 : Math.min(hitIndex, hits.length - 1);
+    markCurrent();
+    syncBar();
+  }
+
+  function markCurrent(): void {
+    const current = hits[hitIndex];
+    for (const [img, frame] of frameByImg) frame.classList.toggle('current', img === current);
+  }
+
+  /** Make match `index` current and bring it into view. */
+  function goTo(index: number): void {
+    hitIndex = index;
+    markCurrent();
+    syncBar();
+    const target = hits[index];
+    if (!target) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  function syncBar(): void {
+    if (highlightKey === null) {
+      bar.hidden = true;
+      return;
+    }
+    const model = buildHighlightBarModel(highlightKey, hitIndex, hits.length);
+    barLabel.textContent = model.label;
+    barCount.textContent = model.counter;
+    bar.setAttribute('aria-label', model.ariaLabel);
+    barPrev.disabled = !model.canStep;
+    barNext.disabled = !model.canStep;
+    bar.hidden = false;
+  }
+
+  function setHighlight(key: HighlightKey | null): number {
+    const changed = key !== highlightKey;
+    highlightKey = key;
+    if (changed) hitIndex = 0;
+    applyHighlight();
+    // A new key starts at its first match; re-asserting the same key (or a
+    // re-collect) leaves the page where it is.
+    if (changed && key !== null) goTo(0);
+    return hits.length;
   }
 
   function clear(): void {
@@ -450,6 +679,8 @@ export function createOverlay(
     }
     for (const wrap of byImg.values()) wrap.remove();
     byImg.clear();
+    findingsByImg.clear();
+    clearFrames();
   }
 
   /** Hover previews the panel, click/tap or keyboard focus pins it, and
@@ -527,7 +758,7 @@ export function createOverlay(
     });
   }
 
-  function buildPanel(findings: ImageFindings): HTMLElement {
+  function buildPanel(findings: ImageFindings, chip: HTMLButtonElement): HTMLElement {
     const model = buildPanelModel(findings);
     const panel = document.createElement('div');
     panel.className = 'panel';
@@ -568,7 +799,7 @@ export function createOverlay(
     button.className = 'pcta';
     button.type = 'button';
     button.textContent = 'optimize';
-    button.addEventListener('click', () => onOptimize(findings.facts.currentSrc));
+    button.addEventListener('click', () => onOptimize(findings.facts.currentSrc, chip));
     panel.append(button);
 
     return panel;
@@ -590,10 +821,11 @@ export function createOverlay(
       chip.append(dot);
     }
     chip.append(document.createTextNode(label.text));
+    if (findings.facts.isLcp) chip.append(makeText('span', 'clcp', 'lcp'));
 
     const slot = document.createElement('div');
     slot.className = 'slot';
-    const panel = buildPanel(findings);
+    const panel = buildPanel(findings, chip);
     slot.append(panel);
 
     wrap.append(chip, slot);
@@ -609,16 +841,24 @@ export function createOverlay(
         wrap.style.display = 'none';
         container.append(wrap);
         byImg.set(img, wrap);
+        findingsByImg.set(img, item.findings);
         io.observe(img);
       }
     }
     if (rafId === 0) rafId = requestAnimationFrame(positionAll);
     syncSwitch();
+    // Re-frame the active highlight against the fresh analysis; the bar's
+    // count follows, and the current match stays put.
+    applyHighlight();
   }
 
   function setMuted(muted: boolean): void {
     mutedNow = muted;
-    host.style.display = muted ? 'none' : '';
+    // A class on .root, not display on the root or the host: the optimize panel
+    // is a sibling of .root and must still open on a muted host (from the
+    // popup's `fix first` list or the context menu), and a highlight asked for
+    // from the popup still frames its images here (see .root.muted in STYLE).
+    root.classList.toggle('muted', muted);
     syncSwitch();
   }
 
@@ -641,6 +881,8 @@ export function createOverlay(
     render,
     setMuted,
     setBadgesEnabled,
+    setHighlight,
+    getHighlight: () => highlightKey,
     destroy
   };
 }

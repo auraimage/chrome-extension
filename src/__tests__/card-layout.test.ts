@@ -7,15 +7,17 @@ function model(overrides: Partial<FindingsCardModel> = {}): FindingsCardModel {
     hostname: 'example.com',
     imageCount: 12,
     totalBytesText: '3.4 MB',
+    wastefulBytes: 1_100_000,
     wastefulBytesText: '1.1 MB',
     estLcpSavingText: '0.4 s',
     lcpImageName: 'hero.jpg',
     flags: [
-      { label: 'oversized', count: 3 },
-      { label: 'missing alt', count: 2 },
-      { label: 'not lazy', count: 5 },
-      { label: 'legacy format', count: 7 }
+      { key: 'oversized', label: 'oversized', count: 3 },
+      { key: 'altAbsent', label: 'missing alt', count: 2 },
+      { key: 'missingLazy', label: 'not lazy', count: 5 },
+      { key: 'legacyFormat', label: 'legacy format', count: 7 }
     ],
+    fixFirst: [],
     cdnName: 'Cloudinary',
     ...overrides
   };
@@ -61,8 +63,25 @@ describe('fontFor / colorFor', () => {
     expect(colorFor('stat')).toBe(CARD_CANVAS.color.fg);
   });
 
+  it('paints the semantic stat roles in the shared loss and win tones', () => {
+    expect(colorFor('statLoss')).toBe(CARD_CANVAS.color.loss);
+    expect(colorFor('statWin')).toBe(CARD_CANVAS.color.win);
+    expect(fontFor('statLoss')).toBe(fontFor('stat'));
+    expect(fontFor('statWin')).toBe(fontFor('stat'));
+  });
+
   it('returns a css font shorthand for every role', () => {
-    for (const role of ['eyebrow', 'title', 'stat', 'statMuted', 'flags', 'cdn', 'footer'] as const) {
+    for (const role of [
+      'eyebrow',
+      'title',
+      'stat',
+      'statLoss',
+      'statWin',
+      'statMuted',
+      'flags',
+      'cdn',
+      'footer'
+    ] as const) {
       expect(fontFor(role)).toMatch(/px /);
     }
   });
@@ -92,6 +111,17 @@ describe('layoutCard', () => {
     const firstStat = rows.find((r) => r.role === 'stat')!;
     expect(title.y).toBeGreaterThan(eyebrow.y);
     expect(firstStat.y).toBeGreaterThan(title.y);
+  });
+
+  it('tones the wasteful line by whether there are bytes to win back, and savings as wins', () => {
+    const wasteful = layoutCard(model()).find((r) => r.text.includes('wasteful'))!;
+    expect(wasteful.role).toBe('statLoss');
+    const clean = layoutCard(model({ wastefulBytes: 0, wastefulBytesText: '0 B' })).find((r) =>
+      r.text.includes('wasteful')
+    )!;
+    expect(clean.role).toBe('statWin');
+    const saving = layoutCard(model()).find((r) => r.text.includes('LCP saving'))!;
+    expect(saving.role).toBe('statWin');
   });
 
   it('keeps the last content row clear of the footer on the maximal card', () => {

@@ -159,10 +159,11 @@ every edge call is click-triggered and metered.
   produces the real before/after proof, so the extension is a live demo of the
   AuraImage edge rather than a mock.
 - **Export gate**. Seeing the audit is always free. Keeping the optimized output
-  is not: `download avif`, `download webp`, `copy <picture> snippet`, and the
-  offline WebP save each spend one of three free exports, after which the export
-  control becomes a "create a free project" link. The cost circuit-breaker and
-  the conversion wall are deliberately the same wall.
+  is not: `download avif`, `download webp`, the `<picture>` snippet copy, and the
+  offline WebP save each spend one of three free exports. The panel shows how
+  many are left, and once they are spent its export controls collapse into a
+  single "create a free project" row. The cost circuit-breaker and the
+  conversion wall are deliberately the same wall.
 - **Offline compress**. Right-click an image and pick `Download as WebP
   (offline)` to decode and re-encode entirely on-device via `OffscreenCanvas`,
   no network. AVIF wasm was the design target; WebP shipped because it is
@@ -191,16 +192,27 @@ steps, then walk this list.
 
 1. Open an image-heavy site (a news homepage, an Unsplash gallery). A small mono
    badge sits over each image's top-left reading `format bytes` (for example
-   `jpeg 412 KB`), with a warning dot on images that have flags.
+   `jpeg 412 KB`), with a warning dot on images that have flags and an `lcp` tag
+   on the page's LCP image.
 2. Scroll and resize the window. Badges track their images smoothly and hide
    when their image scrolls out of view.
 3. Hover a badge. A panel shows `WxH natural, WxH shown`, short flag lines, an
    independently labeled `est. saving` line when known, and an `optimize` button.
-4. Open the popup. The Findings card shows the hostname, images/total/wasteful
-   stats, the estimated LCP saving and the LCP image when known, four flag
-   counts, and a "served via <Vendor>" line on a page using a known image CDN
-   (try a site on Cloudinary or imgix). The footer reads `measured, not scored`
-   and `auraimage.ai`.
+4. Open the popup. The Findings card shows the hostname over an `N images ·
+   total` line, the estimated wasteful bytes as the headline figure, the
+   estimated LCP saving and the LCP image when known, four flag counts, a `fix
+   first` list of up to three https images ranked by estimated saving, and a
+   "served via <Vendor>" line on a page using a known image CDN (try a site on
+   Cloudinary or imgix). Click a `fix first` row: the popup closes and the
+   optimize panel opens on that image. Click a fired flag row (`oversized 5`):
+   the row presses and shows `on page`, and on the page every matching image
+   gets a frame, the other badges dim, the first match scrolls into view, and a
+   bar above the `x-ray` pill reads `oversized 1 of 5` with `‹` `›` to step
+   through the matches and `×` to clear (Escape clears too). The `LCP image`
+   row does the same in the accent tone. Reopen the popup: the row is still
+   pressed; press it again to clear. The frames and the bar still appear on a
+   host whose badges are hidden. The footer reads `measured, not scored`, then
+   `options` (opens the options page) and `auraimage.ai`.
 5. Popup `copy markdown`: paste elsewhere. A markdown block with the stats,
    flags, and the `auraimage.ai` footer link appears, with no em dashes.
 6. Popup `download png`: a 1200x630 PNG downloads. Confirm the text is legible
@@ -208,31 +220,35 @@ steps, then walk this list.
    footer reads `measured, not scored` / `auraimage.ai`.
 7. Popup `copy agent prompt`: copies a prompt built from the page's public image
    URLs. This is never gated.
-8. Popup `hide on <host>`: badges disappear on that host and the button flips to
-   `show on <host>`. Reload the page and badges stay hidden. `show on <host>`
-   restores them.
+8. Popup `badges on <host>` switch: turn it off and badges disappear on that
+   host. Reload the page and badges stay hidden; turning it back on restores
+   them. The `badges on every site` switch does the same for all sites, and the
+   per-host switch is disabled while it is off.
 
 ### Demo transform (click-triggered edge)
 
-9. Hover a badge and click `optimize`. The panel opens with `measuring...`,
-   then the before/after line with real numbers (for example
-   `original 4.2 MB jpeg, avif 180 KB, saves 96%`), a webp line, and a blurhash
-   canvas at the image's aspect ratio.
+9. Hover a badge and click `optimize`. The panel opens as a modal dialog titled
+   with the image's file name, shows a loading skeleton, then the headline
+   saving (for example `saves 2.1 MB (92%)`) over three measured bars
+   (original, avif, webp) and a blurhash canvas at the image's aspect ratio.
+   The `exports` row reads `3 of 3 free left`.
 10. The smart-crop strip shows three thumbnails labeled cover / face / auto, each
     with its own loading state and then an image.
 11. `download avif` and `download webp` save files named `<image>.avif` and
     `<image>.webp`.
-12. `copy <picture> snippet` puts a valid `<picture>` block on the clipboard and
-    counts as an export.
+12. `copy <picture>` puts a valid `<picture>` block on the clipboard, flashes
+    `copied`, and counts as an export (the `exports` counter drops by one).
 13. On a page with a `cdn.auraimage.ai` image, the popup offers `copy <picture>
     snippet` built from the real project and name; it gates after the allowance.
-14. `suggest alt` shows a textarea with alt text plus `copy alt`. On an edge
-    without a vision key it reads `alt suggestions are not configured`.
+14. `suggest alt text` (its hint says the resized image goes to Google Gemini)
+    shows a textarea with alt text plus `copy alt`. On an edge without a vision
+    key it reads `Alt suggestions are not configured on this edge.`
 15. Click `optimize` on a `data:` or `http:` image: it shows that the image needs
     a public https URL and fires no request.
 16. Open the panel, then quickly open it on a different image. No stats,
     thumbnails, or alt from the first image bleed into the second.
-17. `Esc`, a backdrop click, and `close` all dismiss the panel.
+17. `Esc`, a backdrop click, and `close` all dismiss the panel, and keyboard
+    focus returns to the badge that opened it.
 
 ### Context menu and offline compress
 
@@ -255,17 +271,23 @@ steps, then walk this list.
 ### Gate, walls, options, theming
 
 25. After 3 total exports (panel downloads, copy-snippet, and offline saves all
-    count, across tabs) the export controls become the gate CTA linking
-    `auraimage.ai` with `utm_medium=gate`; the offline menu item shows the gate
-    toast and does not download or increment the counter.
-26. When the daily edge ceiling is hit or the edge returns 429, the panel shows
-    the inline wall linking `auraimage.ai` with `utm_medium=wall`.
-27. Options: a non-https edge base shows an error; a valid https value saves;
-    empty reverts to the production default; the counter reads
-    `free exports used: n / 3`.
+    count, across tabs) the panel's three export controls collapse into one
+    gate row, and the popup's snippet button into a `3 of 3 free exports used`
+    note, each with a single `create a free project` link to `auraimage.ai`
+    with `utm_medium=gate`; the offline menu item shows the gate toast and does
+    not download or increment the counter.
+26. When the daily edge ceiling is hit, the panel shows the inline wall linking
+    `auraimage.ai` with `utm_medium=wall`; a transient 503, timeout, or plain
+    429 shows the message with a `retry` button instead.
+27. Options: a non-https edge base shows an error under the field in the loss
+    tone; a valid https value saves with a confirmation in the win tone; empty
+    reverts to the production default; the free exports line reads
+    `n of 3 used, k left` beside a three-segment meter.
 28. Restricted pages (`chrome://extensions`, the Chrome Web Store): the popup
-    shows `Can't read this page.`; the offline menu item does nothing, surfaces
-    no error, and leaves the export counter unchanged.
+    shows `Can't read this page`; the offline menu item does nothing, surfaces
+    no error, and leaves the export counter unchanged. A page with no `<img>`
+    elements shows `no images rendered` under the hostname, with the two badge
+    switches still available.
 29. Dark and light: badges, the hover panel, the popup, the options page, and the
     downloaded PNG all use the correct hue-260 neutrals in both schemes.
 30. Regression: after using the optimize panel, ambient badges and hover panels
@@ -277,13 +299,13 @@ steps, then walk this list.
     panel shows `size unavailable (cross-origin)` instead of silently omitting
     it.
 32. On-page switcher: a pill reading `x-ray · N ▾` sits bottom-right on any page
-    with badges. Clicking it opens a menu (`aura x-ray` with a `?` link, then
+    with badges. Clicking it opens a menu (`aura x-ray` with a `help` link, then
     `hide on <host>` and `hide on every site`) and changes nothing by itself.
     `hide on every site` hides badges in every open tab and collapses the pill
     to a dot; clicking the dot reopens the menu, now leading with `show on every
-    site`. The popup's `hide on every site` button flips the same state.
+    site`. The popup's `badges on every site` switch flips the same state.
     `hide on <host>` removes badges and the switcher on that host only, and the
-    popup's `show on <host>` restores them. Escape, or a click anywhere else,
+    popup's `badges on <host>` switch restores them. Escape, or a click anywhere else,
     closes the menu; opening it closes any pinned badge panel. Muted sites show
     neither badges nor the pill.
 
@@ -293,7 +315,7 @@ The Ambient pass runs in your browser and never reaches AuraImage. It reads the
 images on the page you are viewing; when a cross-origin server hides an image's
 byte size from Resource Timing, it re-requests that image from its own host to
 measure it (usually a cache hit, capped — see PRIVACY.md). Most click actions
-send exactly one thing to the AuraImage demo endpoint: the image URL. The exception is `suggest alt`,
+send exactly one thing to the AuraImage demo endpoint: the image URL. The exception is `suggest alt text`,
 which forwards the resized image bytes (never your browsing history) to Google's
 Gemini API (`generativelanguage.googleapis.com`) to write the description, and
 only when you click it. AuraImage persists nothing either way (ADR 0024), there

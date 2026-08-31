@@ -26,16 +26,20 @@ export function triggerOfflineDownload(base64: string, contentType: string, file
 const NOTICE_STYLE_ID = 'aura-offline-notice-style';
 
 // Mirrors the optimize panel's mono, hue-260 look; pointer-events auto so the
-// CTA is clickable inside the otherwise click-through overlay host.
+// CTA is clickable inside the otherwise click-through overlay host. A failure
+// leads with a loss-toned dot; the gate notice is informational and stays quiet.
 const NOTICE_STYLE = `
   .aonote {
     --popover: oklch(0.985 0.003 260);
     --fg: oklch(0.12 0.005 260);
     --border: oklch(0.91 0.003 260);
+    --loss: oklch(0.48 0.19 27);
+    --shadow: 0 2px 6px oklch(0.12 0.005 260 / 0.06), 0 14px 32px oklch(0.12 0.005 260 / 0.12);
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 8px;
     max-width: min(420px, calc(100vw - 32px)); padding: 10px 14px;
     color: var(--fg); background: var(--popover); border: 1px solid var(--border);
-    border-radius: 8px; pointer-events: auto;
+    border-radius: 9999px; box-shadow: var(--shadow); pointer-events: auto;
     font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; font-size: 12px; line-height: 1.5;
   }
   @media (prefers-color-scheme: dark) {
@@ -43,14 +47,22 @@ const NOTICE_STYLE = `
       --popover: oklch(0.17 0.005 260);
       --fg: oklch(0.95 0.003 260);
       --border: oklch(0.28 0.005 260);
+      --loss: oklch(0.72 0.16 27);
+      --shadow: 0 2px 6px oklch(0 0 0 / 0.35), 0 14px 32px oklch(0 0 0 / 0.5);
     }
   }
-  .aonote a { color: var(--fg); text-decoration: underline; }
+  .aonote-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--loss); flex: 0 0 auto; }
+  .aonote a { color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .aonote { animation: aonote-in 160ms cubic-bezier(0.22, 1, 0.36, 1); }
+  }
+  @keyframes aonote-in { from { opacity: 0; transform: translate(-50%, 6px); } }
 `;
 
 /**
  * Show a transient toast in the overlay shadow root. With `ctaHref` it renders a
- * "create a free project" link (the gate); without one it is a plain notice.
+ * "create a free project" link (the gate); without one it is a failure notice
+ * with a loss-toned dot.
  */
 export function showOfflineNotice(text: string, ctaHref?: string): void {
   const host = ensureOverlayHost();
@@ -64,6 +76,13 @@ export function showOfflineNotice(text: string, ctaHref?: string): void {
 
   const note = document.createElement('div');
   note.className = 'aonote';
+  note.setAttribute('role', 'status');
+  if (!ctaHref) {
+    // No CTA means a quiet failure: mark it as one.
+    const dot = document.createElement('span');
+    dot.className = 'aonote-dot';
+    note.append(dot);
+  }
   note.append(document.createTextNode(text));
   if (ctaHref) {
     const link = document.createElement('a');

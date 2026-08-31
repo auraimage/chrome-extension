@@ -5,23 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AuraImage X-Ray</title>
     <style>
+      /* Hue-260 neutrals from DESIGN.md plus the extension's three semantic
+         tones, shared verbatim with the on-page overlay and the optimize panel:
+         loss = bytes the page pays today (and fired flags), win = a measured
+         saving or a clean state, accent = the active/selected state (switches,
+         the LCP designation, focus). Color carries meaning here, never decoration. */
       :root {
         color-scheme: light dark;
         --bg: oklch(0.985 0.003 260);
-        --card: oklch(0.985 0.003 260);
         --fg: oklch(0.12 0.005 260);
+        --fg-hover: oklch(0.24 0.008 260);
         --muted-fg: oklch(0.45 0.005 260);
-        --muted: oklch(0.97 0.003 260);
+        --muted: oklch(0.94 0.003 260);
         --border: oklch(0.91 0.003 260);
+        --border-strong: oklch(0.78 0.005 260);
+        --loss: oklch(0.48 0.19 27);
+        --loss-soft: oklch(0.95 0.025 27);
+        --win: oklch(0.47 0.13 152);
+        --win-soft: oklch(0.95 0.04 152);
+        --accent: oklch(0.5 0.16 255);
+        --accent-soft: oklch(0.95 0.025 255);
+        --track: oklch(0.86 0.006 260);
+        --knob-off: oklch(0.45 0.005 260);
+        --ring: var(--accent);
+        --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: oklch(0.14 0.005 260);
-          --card: oklch(0.17 0.005 260);
           --fg: oklch(0.95 0.003 260);
+          --fg-hover: oklch(0.88 0.003 260);
           --muted-fg: oklch(0.65 0.005 260);
-          --muted: oklch(0.22 0.005 260);
+          --muted: oklch(0.24 0.005 260);
           --border: oklch(0.28 0.005 260);
+          --border-strong: oklch(0.45 0.005 260);
+          --loss: oklch(0.72 0.16 27);
+          --loss-soft: oklch(0.25 0.05 27);
+          --win: oklch(0.74 0.13 152);
+          --win-soft: oklch(0.25 0.05 152);
+          --accent: oklch(0.72 0.14 255);
+          --accent-soft: oklch(0.27 0.06 255);
+          --track: oklch(0.32 0.006 260);
+          --knob-off: oklch(0.65 0.005 260);
         }
       }
       * {
@@ -30,97 +56,299 @@
       body {
         width: 320px;
         margin: 0;
-        padding: 16px;
+        padding: 16px 16px 12px;
         background: var(--bg);
         color: var(--fg);
         font-family: system-ui, 'Onest', 'Inter', -apple-system, sans-serif;
+        font-size: 0.8125rem;
+        line-height: 1.5;
         -webkit-font-smoothing: antialiased;
       }
-      .card {
-        padding: 16px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 0.75rem;
+      :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
       }
+
+      /* Header: product label, hostname, one measured line under it. */
       .eyebrow {
-        margin: 0 0 8px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.75rem;
+        margin: 0 0 6px;
+        font-family: var(--mono);
+        font-size: 0.6875rem;
         font-weight: 500;
         letter-spacing: 0.04em;
         color: var(--muted-fg);
       }
       .name {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1.125rem;
         font-weight: 600;
+        line-height: 1.25;
         letter-spacing: -0.01em;
-        word-break: break-all;
+        overflow-wrap: anywhere;
+      }
+      .meta {
+        margin: 4px 0 0;
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        color: var(--muted-fg);
+        font-variant-numeric: tabular-nums;
       }
       .hint {
-        margin: 12px 0 0;
-        font-size: 0.8125rem;
-        line-height: 1.5;
+        margin: 10px 0 0;
         color: var(--muted-fg);
       }
+
+      /* Stats: the wasteful estimate is the headline figure; a saving is a win.
+         Each .stat contributes its dt to row 1 and its dd to row 2, so the labels
+         share a line and the two values (28px and 16px) sit on one baseline. */
       .stats {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        grid-template-columns: auto 1fr;
+        column-gap: 20px;
+        row-gap: 2px;
+        align-items: baseline;
         margin: 16px 0 0;
       }
+      .stat {
+        display: contents;
+      }
       .stat dt {
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        grid-row: 1;
+        font-family: var(--mono);
         font-size: 0.6875rem;
         color: var(--muted-fg);
       }
       .stat dd {
-        margin: 2px 0 0;
+        grid-row: 2;
+        margin: 0;
         font-size: 1rem;
         font-weight: 600;
+        line-height: 1.2;
         font-variant-numeric: tabular-nums;
       }
-      .lcp {
-        margin: 12px 0 0;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.6875rem;
-        color: var(--muted-fg);
-        word-break: break-all;
+      .stat.headline dd {
+        font-size: 1.75rem;
+        line-height: 1;
+        letter-spacing: -0.02em;
       }
+      .stat.loss dd {
+        color: var(--loss);
+      }
+      .stat.win dd {
+        color: var(--win);
+      }
+      /* Highlight toggles: the LCP row and each fired flag row frame their
+         images on the page. Pressed = the accent wash plus the `on page` tag,
+         so the state is carried by words as well as color. Rows bleed 6px past
+         the column so the hover wash sits flush with the text, as fix-first's do. */
+      .lcp,
+      .flag-row {
+        display: block;
+        width: calc(100% + 12px);
+        margin: 0 -6px;
+        padding: 0 6px;
+        font-family: var(--mono);
+        text-align: left;
+        color: var(--muted-fg);
+        background: transparent;
+        border: 0;
+        border-radius: 0.375rem;
+      }
+      button.lcp,
+      button.flag-row {
+        cursor: pointer;
+      }
+      button.lcp:hover,
+      button.flag-row:hover {
+        background: var(--muted);
+      }
+      button.lcp:focus-visible,
+      button.flag-row:focus-visible {
+        outline-offset: -2px;
+      }
+      button.lcp[aria-pressed='true'],
+      button.flag-row[aria-pressed='true'] {
+        color: var(--fg);
+        background: var(--accent-soft);
+      }
+      .tag {
+        display: none;
+        margin-left: 8px;
+        white-space: nowrap;
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--accent);
+      }
+      [aria-pressed='true'] .tag {
+        display: inline;
+      }
+
+      /* The name may wrap; the tag never splits and sits at the row's end. */
+      .lcp {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 10px;
+        font-size: 0.6875rem;
+        line-height: 1.9;
+      }
+      .lcp-text {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .lcp b {
+        font-weight: 500;
+        color: var(--fg);
+      }
+      .lcp .tag {
+        margin-left: auto;
+        white-space: nowrap;
+      }
+
+      /* Flags: a fired flag is loss-toned; a zero stays quiet. The count is the
+         signal, the dot only echoes it, so color is never the sole carrier. */
       .flags {
-        list-style: none;
-        margin: 16px 0 0;
+        margin: 14px 0 0;
         padding: 12px 0 0;
         border-top: 1px solid var(--border);
       }
-      .flags li {
+      .flags h2 {
         display: flex;
         justify-content: space-between;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.75rem;
-        line-height: 1.9;
-        color: var(--fg);
-      }
-      .flags li span:first-child {
+        margin: 0 0 4px;
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
         color: var(--muted-fg);
       }
+      .flags ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .flag-row {
+        display: grid;
+        grid-template-columns: 6px 1fr auto;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.75rem;
+        line-height: 1.9;
+        font-variant-numeric: tabular-nums;
+      }
+      .flag-row .mark {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--border-strong);
+      }
+      .flag-row.fired {
+        color: var(--fg);
+      }
+      .flag-row.fired .mark {
+        background: var(--loss);
+      }
+      .flag-row.fired .count {
+        font-weight: 600;
+        color: var(--loss);
+      }
+
+      /* Fix first: the heaviest fixable images, each row opens the optimize panel. */
+      .fix {
+        margin: 12px 0 0;
+        padding: 12px 0 0;
+        border-top: 1px solid var(--border);
+      }
+      .fix h2 {
+        display: flex;
+        justify-content: space-between;
+        margin: 0 0 4px;
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        color: var(--muted-fg);
+      }
+      .fix-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        align-items: center;
+        gap: 10px;
+        width: calc(100% + 12px);
+        margin: 0 -6px;
+        padding: 5px 6px;
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        line-height: 1.5;
+        text-align: left;
+        color: var(--fg);
+        background: transparent;
+        border: 0;
+        border-radius: 0.375rem;
+        cursor: pointer;
+      }
+      .fix-row:hover {
+        background: var(--muted);
+      }
+      .fix-row:focus-visible {
+        outline-offset: -2px;
+      }
+      .fix-name {
+        min-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .fix-save {
+        color: var(--win);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .fix-go {
+        color: var(--muted-fg);
+      }
+      .fix-row:hover .fix-go {
+        color: var(--fg);
+      }
+
+      /* The competitor wedge: an informational callout, accent-washed. */
       .cdn {
-        margin: 14px 0 0;
+        margin: 12px 0 0;
+        padding: 8px 10px;
         font-size: 0.75rem;
         line-height: 1.5;
         color: var(--fg);
+        background: var(--accent-soft);
+        border-radius: 0.5rem;
       }
+      .cdn b {
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      /* Actions: one primary (the agent prompt), the rest secondary pills. */
       .actions {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
-        margin: 12px 0 0;
+        margin: 14px 0 0;
+        padding: 14px 0 0;
+        border-top: 1px solid var(--border);
       }
-      .actions button {
+      .actions button,
+      .actions a.gate {
+        display: block;
+        min-width: 0;
         padding: 8px 12px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family: var(--mono);
         font-size: 0.75rem;
+        font-weight: 500;
         letter-spacing: 0.02em;
+        line-height: 1.4;
+        text-align: center;
+        text-decoration: none;
         color: var(--fg);
         background: transparent;
         border: 1px solid var(--border);
@@ -130,50 +358,177 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
-      @media (prefers-reduced-motion: no-preference) {
-        .actions button {
-          transition: background 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-      }
-      .actions button:hover {
+      .actions button:hover,
+      .actions a.gate:hover {
         background: var(--muted);
+        border-color: var(--border-strong);
+      }
+      .actions .primary {
+        color: var(--bg);
+        background: var(--fg);
+        border-color: var(--fg);
+      }
+      .actions .primary:hover {
+        background: var(--fg-hover);
+        border-color: var(--fg-hover);
       }
       .actions .wide {
         grid-column: 1 / -1;
       }
-      .actions a.gate {
-        display: block;
-        grid-column: 1 / -1;
-        padding: 8px 12px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.75rem;
-        text-align: center;
-        text-decoration: none;
-        color: var(--fg);
-        background: transparent;
-        border: 1px solid var(--border);
-        border-radius: 9999px;
+      /* Feedback flashes: copied/saved in the win tone, a failure in the loss tone. */
+      .actions button.is-win {
+        color: var(--win);
+        background: var(--win-soft);
+        border-color: var(--win);
       }
+      .actions button.is-loss {
+        color: var(--loss);
+        background: var(--loss-soft);
+        border-color: var(--loss);
+      }
+      .actions .primary.is-win {
+        color: var(--bg);
+        background: var(--win);
+        border-color: var(--win);
+      }
+      .actions .primary.is-loss {
+        color: var(--bg);
+        background: var(--loss);
+        border-color: var(--loss);
+      }
+      .gate-note {
+        grid-column: 1 / -1;
+        margin: 0;
+        padding: 8px 10px;
+        font-family: var(--mono);
+        font-size: 0.6875rem;
+        line-height: 1.5;
+        color: var(--muted-fg);
+        background: var(--muted);
+        border-radius: 0.5rem;
+      }
+      .gate-note a {
+        color: var(--fg);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      /* Badge switches: per-host and global, the same state the on-page pill flips. */
+      .switches {
+        margin: 14px 0 0;
+        padding: 10px 0 0;
+        border-top: 1px solid var(--border);
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 30px;
+      }
+      .switch-text {
+        min-width: 0;
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        color: var(--muted-fg);
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .switch-text b {
+        font-weight: 500;
+        color: var(--fg);
+      }
+      .switch-row.is-off .switch-text b {
+        color: var(--muted-fg);
+      }
+      .switch {
+        position: relative;
+        flex: 0 0 auto;
+        width: 34px;
+        height: 20px;
+        padding: 0;
+        background: var(--track);
+        border: 0;
+        border-radius: 9999px;
+        cursor: pointer;
+      }
+      .switch .knob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--knob-off);
+      }
+      .switch[aria-checked='true'] {
+        background: var(--accent);
+      }
+      .switch[aria-checked='true'] .knob {
+        background: var(--bg);
+        transform: translateX(14px);
+      }
+      .switch:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
       .footer {
         display: flex;
         justify-content: space-between;
-        margin: 14px 2px 0;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        gap: 12px;
+        margin: 14px 0 0;
+        padding: 10px 0 0;
+        border-top: 1px solid var(--border);
+        font-family: var(--mono);
         font-size: 0.6875rem;
         color: var(--muted-fg);
+      }
+      .footer-links {
+        display: flex;
+        gap: 12px;
       }
       .footer a {
         color: var(--muted-fg);
         text-decoration: none;
       }
+      .footer a:hover {
+        color: var(--fg);
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .actions button,
+        .actions a.gate,
+        .fix-row,
+        button.lcp,
+        button.flag-row,
+        .footer a {
+          transition:
+            background 120ms var(--ease-out),
+            border-color 120ms var(--ease-out),
+            color 120ms var(--ease-out);
+        }
+        .switch {
+          transition: background 150ms var(--ease-out);
+        }
+        .switch .knob {
+          transition:
+            transform 150ms var(--ease-out),
+            background 150ms var(--ease-out);
+        }
+      }
     </style>
   </head>
   <body>
     <main id="app"></main>
-    <div class="footer">
+    <footer class="footer">
       <span>measured, not scored</span>
-      <a href="https://auraimage.ai" target="_blank" rel="noreferrer">auraimage.ai</a>
-    </div>
+      <span class="footer-links">
+        <a id="options" href="#">options</a>
+        <a href="https://auraimage.ai" target="_blank" rel="noreferrer">auraimage.ai</a>
+      </span>
+    </footer>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

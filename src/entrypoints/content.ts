@@ -10,13 +10,16 @@ import { type AnalyzedImage, createOverlay } from '@/content/overlay';
 import { probeOutcome, queueSizeProbes } from '@/content/size-probe';
 import { aggregate, analyzeImage } from '@/shared/analyze';
 import { BADGES_ENABLED_KEY, getBadgesEnabled, setBadgesEnabled } from '@/shared/badge-switch';
+import { isHighlightKey } from '@/shared/highlight';
 import { MUTED_HOSTS_KEY, isHostMuted, setHostMuted } from '@/shared/mute';
 import type {
   FindingsResponse,
+  HighlightResponse,
   OfflineDownloadMessage,
   OfflineNoticeMessage,
   OpenOptimizeMessage,
-  PageFindings
+  PageFindings,
+  SetHighlightMessage
 } from '@/shared/types';
 import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
@@ -43,7 +46,7 @@ export default defineContentScript({
   main() {
     const optimizePanel = createOptimizePanel();
     const overlay = createOverlay(
-      (src) => optimizePanel.open(src),
+      (src, opener) => optimizePanel.open(src, opener),
       (action) => {
         if (action === 'hide-host') void setHostMuted(location.hostname, true);
         else void setBadgesEnabled(action === 'show-all');
@@ -95,7 +98,8 @@ export default defineContentScript({
         const response: FindingsResponse = {
           findings: latestFindings,
           pageUrl: location.href,
-          renderedImageCount
+          renderedImageCount,
+          highlight: overlay.getHighlight()
         };
         sendResponse(response);
         return false;
@@ -104,6 +108,15 @@ export default defineContentScript({
         case 'aura:open-optimize':
           optimizePanel.open((message as OpenOptimizeMessage).src);
           return false;
+        case 'aura:set-highlight': {
+          // Narrow the key here: an unknown value (a newer popup, a stray
+          // message) clears rather than framing nothing under a stale label.
+          const { key } = message as SetHighlightMessage;
+          const safeKey = isHighlightKey(key) ? key : null;
+          const response: HighlightResponse = { key: safeKey, matches: overlay.setHighlight(safeKey) };
+          sendResponse(response);
+          return false;
+        }
         case 'aura:offline-download': {
           const { base64, contentType, fileName } = message as OfflineDownloadMessage;
           triggerOfflineDownload(base64, contentType, fileName);

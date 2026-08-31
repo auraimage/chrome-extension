@@ -1,11 +1,12 @@
 // Layout constants and line math for the 1200x630 "download PNG" share card.
 // Pure: returns rgb() color strings, css font shorthands, and positioned text
 // rows. The popup does the actual 2D drawing from these rows. Colors are rgb
-// equivalents of the DESIGN.md hue-260 dark neutrals (never #000/#fff), because
-// canvas fillStyle cannot be trusted to parse oklch() on every target.
+// equivalents of the DESIGN.md hue-260 dark neutrals (never #000/#fff) plus the
+// two semantic tones the popup uses (loss = bytes paid today, win = a saving),
+// because canvas fillStyle cannot be trusted to parse oklch() on every target.
 import type { FindingsCardModel } from './findings-model';
 
-export type CardRole = 'eyebrow' | 'title' | 'stat' | 'statMuted' | 'flags' | 'cdn' | 'footer';
+export type CardRole = 'eyebrow' | 'title' | 'stat' | 'statLoss' | 'statWin' | 'statMuted' | 'flags' | 'cdn' | 'footer';
 
 export interface CardRow {
   text: string;
@@ -15,9 +16,11 @@ export interface CardRow {
   align: 'left' | 'right';
 }
 
-// Dark monochrome share card. rgb() approximations of hue-260 neutrals:
-// bg oklch(0.14), card oklch(0.17), fg oklch(0.95), muted oklch(0.65),
-// border oklch(0.28). None is pure black or white.
+// Dark share card. rgb() approximations of hue-260 neutrals: bg oklch(0.14),
+// card oklch(0.17), fg oklch(0.95), muted oklch(0.65), border oklch(0.28); plus
+// the dark-scheme semantic tones loss oklch(0.72 0.16 27) and win
+// oklch(0.74 0.13 152), the same values the popup and overlay use. None is pure
+// black or white.
 export const CARD_CANVAS = {
   width: 1200,
   height: 630,
@@ -37,7 +40,9 @@ export const CARD_CANVAS = {
     card: 'rgb(28, 28, 34)',
     fg: 'rgb(238, 238, 242)',
     muted: 'rgb(150, 150, 161)',
-    border: 'rgb(58, 58, 66)'
+    border: 'rgb(58, 58, 66)',
+    loss: 'rgb(249, 120, 108)',
+    win: 'rgb(101, 194, 129)'
   },
   font: {
     eyebrow: "500 22px ui-monospace, 'SFMono-Regular', Menlo, monospace",
@@ -58,6 +63,8 @@ export function fontFor(role: CardRole): string {
     case 'title':
       return f.title;
     case 'stat':
+    case 'statLoss':
+    case 'statWin':
       return f.stat;
     case 'statMuted':
       return f.statMuted;
@@ -74,6 +81,8 @@ export function fontFor(role: CardRole): string {
 export function colorFor(role: CardRole): string {
   const c = CARD_CANVAS.color;
   if (role === 'eyebrow' || role === 'statMuted' || role === 'cdn' || role === 'footer') return c.muted;
+  if (role === 'statLoss') return c.loss;
+  if (role === 'statWin') return c.win;
   return c.fg;
 }
 
@@ -101,13 +110,15 @@ export function layoutCard(model: FindingsCardModel): CardRow[] {
   const titleY = eyebrowY + titleGap;
   rows.push({ text: model.hostname, x: padX, y: titleY, role: 'title', align: 'left' });
 
-  // Primary stats and estimates stack below the title.
+  // Primary stats and estimates stack below the title. The wasteful line is the
+  // headline figure: loss-toned while there are bytes to win back, win-toned on
+  // a clean page; a saving is always a win.
   const statLines: Array<{ text: string; role: CardRole }> = [
     { text: `${model.imageCount} images,  ${model.totalBytesText} total`, role: 'stat' },
-    { text: `${model.wastefulBytesText} wasteful (est)`, role: 'stat' }
+    { text: `${model.wastefulBytesText} wasteful (est)`, role: model.wastefulBytes > 0 ? 'statLoss' : 'statWin' }
   ];
   if (model.estLcpSavingText) {
-    statLines.push({ text: `est. LCP saving ${model.estLcpSavingText}`, role: 'statMuted' });
+    statLines.push({ text: `est. LCP saving ${model.estLcpSavingText}`, role: 'statWin' });
   }
   if (model.lcpImageName) {
     statLines.push({ text: `LCP image: ${model.lcpImageName}`, role: 'statMuted' });

@@ -7,21 +7,38 @@
     <!-- Open the options page in a full tab, matching the pre-WXT options_page behavior. -->
     <meta name="manifest.open_in_tab" content="true" />
     <style>
+      /* Same tokens as the popup: hue-260 neutrals plus loss/win/accent, so a
+         saved edge base and a rejected one read the same way everywhere. */
       :root {
         color-scheme: light dark;
         --bg: oklch(0.985 0.003 260);
-        --card: oklch(0.985 0.003 260);
         --fg: oklch(0.12 0.005 260);
+        --fg-hover: oklch(0.24 0.008 260);
         --muted-fg: oklch(0.45 0.005 260);
+        --muted: oklch(0.94 0.003 260);
         --border: oklch(0.91 0.003 260);
+        --border-strong: oklch(0.78 0.005 260);
+        --loss: oklch(0.48 0.19 27);
+        --win: oklch(0.47 0.13 152);
+        --accent: oklch(0.5 0.16 255);
+        --track: oklch(0.91 0.003 260);
+        --ring: var(--accent);
+        --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: oklch(0.14 0.005 260);
-          --card: oklch(0.17 0.005 260);
           --fg: oklch(0.95 0.003 260);
+          --fg-hover: oklch(0.88 0.003 260);
           --muted-fg: oklch(0.65 0.005 260);
+          --muted: oklch(0.24 0.005 260);
           --border: oklch(0.28 0.005 260);
+          --border-strong: oklch(0.45 0.005 260);
+          --loss: oklch(0.72 0.16 27);
+          --win: oklch(0.74 0.13 152);
+          --accent: oklch(0.72 0.14 255);
+          --track: oklch(0.28 0.005 260);
         }
       }
       * {
@@ -29,23 +46,25 @@
       }
       body {
         margin: 0;
-        padding: 48px 24px;
+        padding: 56px 24px;
         background: var(--bg);
         color: var(--fg);
         font-family: system-ui, 'Onest', 'Inter', -apple-system, sans-serif;
+        font-size: 0.875rem;
+        line-height: 1.55;
         -webkit-font-smoothing: antialiased;
       }
-      .card {
+      :focus-visible {
+        outline: 2px solid var(--ring);
+        outline-offset: 2px;
+      }
+      .page {
         max-width: 480px;
         margin: 0 auto;
-        padding: 24px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 0.75rem;
       }
       .eyebrow {
         margin: 0 0 8px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-family: var(--mono);
         font-size: 0.75rem;
         font-weight: 500;
         letter-spacing: 0.04em;
@@ -53,72 +72,177 @@
       }
       .name {
         margin: 0;
-        font-size: 1.25rem;
+        font-size: 1.375rem;
+        font-weight: 600;
+        line-height: 1.2;
+        letter-spacing: -0.015em;
+      }
+      section {
+        margin: 32px 0 0;
+        padding: 24px 0 0;
+        border-top: 1px solid var(--border);
+      }
+      h2 {
+        margin: 0;
+        font-size: 1rem;
         font-weight: 600;
         letter-spacing: -0.01em;
       }
       .hint {
-        margin: 12px 0 0;
-        font-size: 0.875rem;
-        line-height: 1.55;
+        margin: 6px 0 0;
+        max-width: 60ch;
         color: var(--muted-fg);
       }
       label {
         display: block;
-        margin: 20px 0 6px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin: 18px 0 6px;
+        font-family: var(--mono);
         font-size: 0.75rem;
         color: var(--muted-fg);
       }
+      .field {
+        display: flex;
+        gap: 8px;
+      }
       input {
-        width: 100%;
-        padding: 8px 10px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        flex: 1;
+        min-width: 0;
+        padding: 9px 12px;
+        font-family: var(--mono);
         font-size: 0.8125rem;
         color: var(--fg);
         background: transparent;
-        border: 1px solid var(--border);
-        border-radius: 0.5rem;
+        border: 1px solid var(--border-strong);
+        border-radius: 0.625rem;
+      }
+      input::placeholder {
+        color: var(--muted-fg);
+      }
+      input[aria-invalid='true'] {
+        border-color: var(--loss);
       }
       button {
-        margin-top: 12px;
-        padding: 8px 16px;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        flex: 0 0 auto;
+        padding: 9px 18px;
+        font-family: var(--mono);
         font-size: 0.75rem;
-        color: var(--fg);
-        background: transparent;
-        border: 1px solid var(--border);
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        color: var(--bg);
+        background: var(--fg);
+        border: 1px solid var(--fg);
         border-radius: 9999px;
         cursor: pointer;
       }
+      button:hover {
+        background: var(--fg-hover);
+        border-color: var(--fg-hover);
+      }
+      /* Feedback under the field: win when it saved, loss when it was rejected. */
       .status {
-        margin: 12px 0 0;
-        min-height: 1.2em;
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin: 10px 0 0;
+        min-height: 1.5em;
+        font-family: var(--mono);
         font-size: 0.75rem;
         color: var(--muted-fg);
+        overflow-wrap: anywhere;
+      }
+      .status.win {
+        color: var(--win);
+      }
+      .status.loss {
+        color: var(--loss);
+      }
+      /* The export allowance: one segment per free export, filled as they are spent. */
+      .meter {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        gap: 4px;
+        max-width: 240px;
+        height: 6px;
+        margin: 18px 0 0;
+      }
+      .seg {
+        border-radius: 3px;
+        background: var(--track);
+      }
+      .seg.used {
+        background: var(--fg);
+      }
+      .meter.spent .seg.used {
+        background: var(--loss);
       }
       .usage {
-        margin: 24px 0 0;
-        padding-top: 16px;
-        border-top: 1px solid var(--border);
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        margin: 10px 0 0;
+        font-family: var(--mono);
         font-size: 0.75rem;
         color: var(--muted-fg);
+        font-variant-numeric: tabular-nums;
+      }
+      .usage.spent {
+        color: var(--loss);
+      }
+      .usage a,
+      .hint a {
+        color: var(--fg);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        button {
+          transition:
+            background 120ms var(--ease-out),
+            border-color 120ms var(--ease-out);
+        }
+        input {
+          transition: border-color 120ms var(--ease-out);
+        }
+        .seg {
+          transition: background 200ms var(--ease-out);
+        }
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <p class="eyebrow">options</p>
-      <h1 class="name">AuraImage X-Ray</h1>
-      <p class="hint">Point the extension at a different edge for local or staging work. Leave it empty to use the production CDN.</p>
-      <label for="edgeBase">edge base URL</label>
-      <input id="edgeBase" type="url" inputmode="url" spellcheck="false" placeholder="https://cdn.auraimage.ai" />
-      <button id="save" type="button">save</button>
-      <p id="status" class="status"></p>
-      <p id="usage" class="usage"></p>
-    </div>
+    <main class="page">
+      <header>
+        <p class="eyebrow">options</p>
+        <h1 class="name">AuraImage X-Ray</h1>
+      </header>
+
+      <section>
+        <h2>Edge</h2>
+        <p class="hint">
+          Point the extension at a different edge for local or staging work. Leave it empty to use the production CDN.
+        </p>
+        <form id="edgeForm" novalidate>
+          <label for="edgeBase">edge base URL</label>
+          <div class="field">
+            <input
+              id="edgeBase"
+              name="edgeBase"
+              type="url"
+              inputmode="url"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="https://cdn.auraimage.ai" />
+            <button id="save" type="submit">save</button>
+          </div>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <section>
+        <h2>Free exports</h2>
+        <p class="hint">
+          Seeing an optimization is always free. Keeping it (an AVIF or WebP download, a copied
+          <code>&lt;picture&gt;</code> snippet, an offline save) spends one of the free exports below.
+        </p>
+        <div id="meter" class="meter" role="meter" aria-label="free exports used"></div>
+        <p id="usage" class="usage"></p>
+      </section>
+    </main>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

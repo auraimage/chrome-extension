@@ -30,7 +30,8 @@ import sharp from 'sharp';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..');
-const dist = join(repoRoot, 'dist');
+// WXT writes the Chrome build here (ADR 0028); the pre-WXT dist/ no longer exists.
+const dist = join(repoRoot, '.output', 'chrome-mv3');
 const demoDir = join(repoRoot, 'demo');
 const outDir = join(repoRoot, 'store-assets');
 
@@ -291,7 +292,7 @@ async function planFromPrompts(): Promise<ShotPlan> {
 
 async function main(): Promise<void> {
   if (!existsSync(join(dist, 'manifest.json'))) {
-    p.log.error('dist/manifest.json not found — run "pnpm build" first');
+    p.log.error('.output/chrome-mv3/manifest.json not found — run "pnpm build" first');
     process.exit(1);
   }
 

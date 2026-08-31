@@ -7,15 +7,17 @@ function model(overrides: Partial<FindingsCardModel> = {}): FindingsCardModel {
     hostname: 'example.com',
     imageCount: 12,
     totalBytesText: '3.4 MB',
+    wastefulBytes: 1_100_000,
     wastefulBytesText: '1.1 MB',
     estLcpSavingText: '0.4 s',
     lcpImageName: 'hero.jpg',
     flags: [
-      { label: 'oversized', count: 3 },
-      { label: 'missing alt', count: 2 },
-      { label: 'not lazy', count: 5 },
-      { label: 'legacy format', count: 7 }
+      { key: 'oversized', label: 'oversized', count: 3 },
+      { key: 'altAbsent', label: 'missing alt', count: 2 },
+      { key: 'missingLazy', label: 'not lazy', count: 5 },
+      { key: 'legacyFormat', label: 'legacy format', count: 7 }
     ],
+    fixFirst: [],
     cdnName: 'Cloudinary',
     ...overrides
   };

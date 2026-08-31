@@ -22,7 +22,8 @@ import sharp from 'sharp';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..');
-const dist = join(repoRoot, 'dist');
+// WXT writes the Chrome build here (ADR 0028); the pre-WXT dist/ no longer exists.
+const dist = join(repoRoot, '.output', 'chrome-mv3');
 const outDir = join(repoRoot, 'store-assets');
 
 const STORE_W = 1280;
