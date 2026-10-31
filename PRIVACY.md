@@ -32,10 +32,10 @@ The extension calls AuraImage only when you explicitly click an edge action
 thing to the AuraImage demo endpoint: **the URL of the image you clicked**. The
 endpoint fetches that image, runs the AuraImage transform pipeline (AVIF/WebP
 encode, smart-crop, blurhash), and returns the result. No account or sign-in is
-involved (ADR 0024). It does keep two things: **the image URL you click reaches
-AuraImage's CDN logs**, and **the result is cached at the edge for about 24
-hours**. **Your IP address is used for rate limiting** and can appear in request
-logs kept for up to 30 days.
+involved (ADR 0024). It does keep three things: **the image URL you click
+reaches AuraImage's CDN logs**, **the result is cached at the edge for about 24
+hours**, and **your IP address is used for rate limiting** and can appear in
+request logs kept for up to 30 days.
 
 The offline WebP save (`Download as WebP (offline)`) sends nothing at all. It
 fetches and re-encodes the image entirely on your device.
