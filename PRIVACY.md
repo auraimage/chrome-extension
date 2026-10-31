@@ -1,7 +1,7 @@
 # Privacy Policy
 
 **Extension:** AuraImage X-Ray
-**Last updated:** 2026-07-14
+**Last updated:** 2026-10-31
 
 AuraImage X-Ray audits the images on the page you are viewing. It is built so
 that the audit itself never reaches AuraImage. This policy states exactly what
@@ -31,9 +31,10 @@ The extension calls AuraImage only when you explicitly click an edge action
 `suggest alt`). For every action except `suggest alt`, it sends exactly one
 thing to the AuraImage demo endpoint: **the URL of the image you clicked**. The
 endpoint fetches that image, runs the AuraImage transform pipeline (AVIF/WebP
-encode, smart-crop, blurhash), and returns the result. It is anonymous and
-stateless: it **persists nothing** about you, the image, or the page you found
-it on (ADR 0024). No account, sign-in, or personal identifier is involved.
+encode, smart-crop, blurhash), and returns the result. It is anonymous: no
+account, sign-in, or personal identifier is involved (ADR 0024). It does keep
+two things: **the image URL you click reaches AuraImage's CDN logs**, and **the
+result is cached at the edge for about 24 hours**.
 
 The offline WebP save (`Download as WebP (offline)`) sends nothing at all. It
 fetches and re-encodes the image entirely on your device.
@@ -46,7 +47,9 @@ description, the AuraImage edge resizes the image you clicked and forwards those
 (`generativelanguage.googleapis.com`), which returns the suggested text. Only
 the image bytes are sent, and only when you press `suggest alt`. Your browsing
 history, the page URL, and any personal identifier are never part of that call.
-AuraImage still **persists nothing** from it (ADR 0024); Google processes the
+**The alt text is written by Google Gemini**, not by AuraImage. As with the
+other actions, the image URL you click reaches AuraImage's CDN logs, and the
+resized image is cached at the edge for about 24 hours. Google processes the
 bytes under its own data handling terms. If you never click `suggest alt`,
 nothing is ever sent to Google.
 
