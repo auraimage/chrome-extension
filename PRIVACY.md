@@ -31,10 +31,11 @@ The extension calls AuraImage only when you explicitly click an edge action
 `suggest alt`). For every action except `suggest alt`, it sends exactly one
 thing to the AuraImage demo endpoint: **the URL of the image you clicked**. The
 endpoint fetches that image, runs the AuraImage transform pipeline (AVIF/WebP
-encode, smart-crop, blurhash), and returns the result. It is anonymous: no
-account, sign-in, or personal identifier is involved (ADR 0024). It does keep
-two things: **the image URL you click reaches AuraImage's CDN logs**, and **the
-result is cached at the edge for about 24 hours**.
+encode, smart-crop, blurhash), and returns the result. No account or sign-in is
+involved (ADR 0024). It does keep two things: **the image URL you click reaches
+AuraImage's CDN logs**, and **the result is cached at the edge for about 24
+hours**. **Your IP address is used for rate limiting** and can appear in request
+logs kept for up to 30 days.
 
 The offline WebP save (`Download as WebP (offline)`) sends nothing at all. It
 fetches and re-encodes the image entirely on your device.
@@ -46,11 +47,12 @@ description, the AuraImage edge resizes the image you clicked and forwards those
 **resized image bytes** to Google's Gemini API
 (`generativelanguage.googleapis.com`), which returns the suggested text. Only
 the image bytes are sent, and only when you press `suggest alt`. Your browsing
-history, the page URL, and any personal identifier are never part of that call.
-**The alt text is written by Google Gemini**, not by AuraImage. As with the
-other actions, the image URL you click reaches AuraImage's CDN logs, and the
-resized image is cached at the edge for about 24 hours. Google processes the
-bytes under its own data handling terms. If you never click `suggest alt`,
+history and the page URL are never part of that call. **The alt text is written
+by Google Gemini**, not by AuraImage. As with the other actions, the image URL
+you click reaches AuraImage's CDN logs, the resized image is cached at the edge
+for about 24 hours, and your IP address is used for rate limiting and can appear
+in request logs kept for up to 30 days. Google processes the bytes under its own
+data handling terms. If you never click `suggest alt`,
 nothing is ever sent to Google.
 
 ## What is stored locally

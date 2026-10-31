@@ -153,11 +153,13 @@ every edge call is click-triggered and metered.
   page. It is unlimited and free; offline, sizes the browser hides simply stay
   unknown and the hover panel says why.
 - **Demo transform** (click-triggered edge). Clicking an image's `optimize`
-  action sends one thing to the demo endpoint: the image URL. The endpoint is
-  anonymous, stateless, and rate-limited; it runs the real serve pipeline
-  (AVIF/WebP encode, smart-crop, blurhash) and persists nothing. This is what
-  produces the real before/after proof, so the extension is a live demo of the
-  AuraImage edge rather than a mock.
+  action sends one thing to the demo endpoint: the image URL. The endpoint needs
+  no account and is rate-limited; it runs the real serve pipeline (AVIF/WebP
+  encode, smart-crop, blurhash). The image URL reaches AuraImage's CDN logs, the
+  result is cached at the edge for about 24 hours, and your IP address is used
+  for rate limiting and can appear in request logs kept for up to 30 days. This
+  is what produces the real before/after proof, so the extension is a live demo
+  of the AuraImage edge rather than a mock.
 - **Export gate**. Seeing the audit is always free. Keeping the optimized output
   is not: `download avif`, `download webp`, the `<picture>` snippet copy, and the
   offline WebP save each spend one of three free exports. The panel shows how
@@ -318,10 +320,12 @@ measure it (usually a cache hit, capped — see PRIVACY.md). Most click actions
 send exactly one thing to the AuraImage demo endpoint: the image URL. The exception is `suggest alt text`,
 which forwards the resized image bytes (never your browsing history) to Google's
 Gemini API (`generativelanguage.googleapis.com`) to write the description, and
-only when you click it. AuraImage persists nothing either way (ADR 0024), there
-is no analytics, and no browsing history is collected or transmitted; Google
-applies its own data handling to the alt call. The full policy is in
-[PRIVACY.md](./PRIVACY.md).
+only when you click it, so the alt text is written by Google Gemini. Either way,
+the image URL you click reaches AuraImage's CDN logs, the result is cached at
+the edge for about 24 hours, and your IP address is used for rate limiting and
+can appear in request logs kept for up to 30 days. There is no analytics, and no
+browsing history is collected or transmitted; Google applies its own data
+handling to the alt call. The full policy is in [PRIVACY.md](./PRIVACY.md).
 
 ## Open source
 

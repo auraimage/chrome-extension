@@ -53,10 +53,12 @@ What it does:
 
 Your privacy: the audit never reaches AuraImage. The ambient pass talks only to
 hosts the page already loaded images from, and only to measure sizes the
-browser hides. The only thing a click sends is the image URL, to a stateless
-endpoint that persists nothing. The one
-exception is alt text, which forwards the resized image bytes to Google's Gemini
-API only when you ask for it. No analytics, no browsing history, no tracking.
+browser hides. The only thing a click sends is the image URL. It reaches
+AuraImage's CDN logs, the result is cached at the edge for about 24 hours, and
+your IP address is used for rate limiting and can appear in request logs kept
+for up to 30 days. The one exception is alt text, which forwards the resized
+image bytes to Google's Gemini API only when you ask for it; the alt text is
+written by Google Gemini. No analytics, no browsing history, no tracking.
 The full policy is linked below.
 
 Open source: the extension is open source, so the broad host permission it needs
